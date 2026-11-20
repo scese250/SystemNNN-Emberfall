@@ -12,8 +12,8 @@ import java.util.Map;
 /** Title assets are decoded from the selected game. Button source rectangles use the untrimmed canvas. */
 final class TitleMenu {
     enum Action {
-        START("新游戏"), LOAD("读取存档"), SETTINGS("设置"), EXTRAS("鉴赏"), EXIT("退出"),
-        CONTINUE("继续游戏"), LAST_LOAD("读取上次存档"), WEBSITE("官方网站"), MODE("扩展"), SCENARIO("剧情"), MINIGAME("小游戏");
+        START("New Game"), LOAD("Load Save"), SETTINGS("Settings"), EXTRAS("Gallery"), EXIT("Exit"),
+        CONTINUE("Continue"), LAST_LOAD("Load Last Save"), WEBSITE("Official Website"), MODE("Extra"), SCENARIO("Scenario"), MINIGAME("Mini-game");
         final String label;
         Action(String label) { this.label=label; }
     }

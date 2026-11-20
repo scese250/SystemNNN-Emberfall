@@ -11,6 +11,7 @@ final class PlayerSettings {
     static final String MUSIC="musicVolume", SOUND="soundVolume", VOICE="voiceVolume", EFFECT_VOICE="effectVoiceVolume";
     static final String TEXT_SPEED="textSpeed", AUTO_SPEED="autoSpeed", SKIP_READ_ONLY="skipReadOnly";
     static final String READING_SIZE="androidReadingSizePercent";
+    static final String CUSTOM_FONT_NAME="customFontName", CUSTOM_FONT_VERSION="customFontVersion";
     static final int DEFAULT_READING_SIZE=85;
     static final int[] READING_SIZES={60,85,100,115};
     final int musicVolume,soundVolume,voiceVolume,effectVoiceVolume,textSpeed,autoSpeed,readingSize;

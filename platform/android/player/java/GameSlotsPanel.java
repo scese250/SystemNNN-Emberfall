@@ -360,7 +360,7 @@ final class GameSlotsPanel extends GameUiPanel {
             int target=i;
             GameButton tab=animatedButton(spec,sprite(spec.image),Integer.toString(i+1),
                 ()->sound(spec.sound,spec.voice),()->showPage(target),selected?onX:x,selected?onY:y,setup.width,setup.height);
-            tab.setContentDescription("第 "+(i+1)+" 页");
+            tab.setContentDescription("Page "+(i+1));
             tab.setSelected(selected);
             if(selected){tab.setOnClickListener(null);tab.setClickable(false);}
         }
@@ -374,7 +374,7 @@ final class GameSlotsPanel extends GameUiPanel {
         Bitmap font=sprite(config.value("fileNamePageFont","ta_font_sl3"));
         String number=zero!=0?digits(page+1,places):Integer.toString(page+1);
         View label=pageGlyphs(font,number,w,h,advance,x+Math.max(0,places-number.length())*advance,y);
-        if(label!=null)label.setContentDescription("第 "+(page+1)+" / "+pages+" 页");
+        if(label!=null)label.setContentDescription("Page "+(page+1)+" / "+pages);
         if(config.number("pageMaxPrintFlag",0)==0)return;
         String maximum=config.number("maxPageUpZeroPrintFlag",zero)!=0?digits(pages,places):Integer.toString(pages);
         int maxX=config.number("pageMaxPrintX",x+(places+1)*advance);
@@ -403,8 +403,8 @@ final class GameSlotsPanel extends GameUiPanel {
         int x=cfg.number("dialogX",331),y=cfg.number("dialogY",277);
         dialog.picture(cfg.value("filenameDialog","ta_dialog_save"),x,y,cfg.number("dialogSizeX",618),cfg.number("dialogSizeY",143));
         dialog.sound(this::sound);
-        dialog.buttonAt(cfg,"dialogOk","dialogOk","覆盖保存",()->{removeView(confirmation);confirmation=null;beginSelect(card,e.slot);},x,y,90,60,192,72);
-        dialog.buttonAt(cfg,"dialogCancel","dialogCancel","取消覆盖",this::dismissConfirmation,x,y,323,60,192,72);
+        dialog.buttonAt(cfg,"dialogOk","dialogOk","Overwrite",()->{removeView(confirmation);confirmation=null;beginSelect(card,e.slot);},x,y,90,60,192,72);
+        dialog.buttonAt(cfg,"dialogCancel","dialogCancel","Cancel",this::dismissConfirmation,x,y,323,60,192,72);
         addView(dialog,new LayoutParams(-1,-1));
     }
     private void dismissConfirmation(){
@@ -484,6 +484,7 @@ final class GameSlotsPanel extends GameUiPanel {
         private long cursorSince;
         SlotCard(SaveSlots.Entry e,int serial,boolean quick){
             super(GameSlotsPanel.this.getContext());this.serial=serial;setSoundEffectsEnabled(false);
+            PlayerFont.apply(p,GameSlotsPanel.this.getContext());
             this.quick=quick;
             label=quick?SaveSlots.labelFor(SaveSlots.QUICK):e.label();
             String image=baseImageName(data,saving,quick);
@@ -498,8 +499,8 @@ final class GameSlotsPanel extends GameUiPanel {
             summary=e.displaySummary();
             boolean allowQuick=config.number(saving?"quickSaveSelectOk":"quickLoadSelectOk",0)!=0;
             setEnabled((!quick||allowQuick)&&(saving||e.exists&&!e.corrupt));
-            setContentDescription(label+" · "+(e.corrupt?"存档无法读取":
-                !e.exists?"空槽位":time+(summary.isEmpty()?"":" · "+summary)));
+            setContentDescription(label+" · "+(e.corrupt?"Corrupted Save":
+                !e.exists?"Empty Slot":time+(summary.isEmpty()?"":" · "+summary)));
             cursorState=-1; // drawCursor resets cursorSince on the next draw, as PC InitAnime does.
             invalidate();
         }

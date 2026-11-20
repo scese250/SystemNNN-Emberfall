@@ -174,8 +174,8 @@ final class GameChoicePanel extends GameUiPanel implements StoryPlaneView.Host {
         }
         int last=Math.max(0,frame.choices.length-visible);
         if(last>0){
-            button(cfg,"Up","Up","上一项",()->move(-1,last),canvasWidth/2-24,y-66,48,48).setEnabled(page>0);
-            button(cfg,"Down","Down","下一项",()->move(1,last),canvasWidth/2-24,y+(visible+frame.choiceMessages.length)*step+4,48,48).setEnabled(page<last);
+            button(cfg,"Up","Up","Previous Option",()->move(-1,last),canvasWidth/2-24,y-66,48,48).setEnabled(page>0);
+            button(cfg,"Down","Down","Next Option",()->move(1,last),canvasWidth/2-24,y+(visible+frame.choiceMessages.length)*step+4,48,48).setEnabled(page<last);
         }
         if(frame.choiceInfo[0]>0&&(cfg.number("timerPrintType",1)>0||cfg.number("timerTimePrintFlag",0)>=2)){
             timer=new ChoiceTimer();
@@ -270,6 +270,7 @@ final class GameChoicePanel extends GameUiPanel implements StoryPlaneView.Host {
         final RectF dest=new RectF();
         ChoiceRow(int index){
             super(GameChoicePanel.this.getContext());this.index=index;
+            PlayerFont.apply(paint,GameChoicePanel.this.getContext());
             DialogueMarkup content=markup.parse(frame.choices[index]);
             label=content.text;
             if(content.annotations.isEmpty())annotated=null;

@@ -26,7 +26,7 @@ final class GameMiniGames {
     GameMiniGames(GameUiAssets.Config config,int index,long handle,List<Bitmap> backgrounds) throws IOException {
         this.config=config;this.index=index;
         type=config.number("miniGame"+(index+1),0);
-        if(index<0||index>=config.number("addMiniGame",0)||type<1||type>10)throw new IOException("小游戏配置不可用");
+        if(index<0||index>=config.number("addMiniGame",0)||type<1||type>10)throw new IOException("Mini-game configuration unavailable");
         Bitmap fallback=picture(handle,config.value("noCGFileName","nnnlogo"),true);
         first=backgrounds.isEmpty()?fallback:backgrounds.get(0);
         second=backgrounds.size()>1?backgrounds.get(1):null;

@@ -32,7 +32,7 @@ final class GameInputPanel extends GameUiPanel {
     interface Result {void finish(boolean accepted,int elapsedFrames,byte[][] values,Bitmap previous);}
     private static final byte[] EMPTY=new byte[0];
     private static final String[] TAG={"sei","mei"};
-    private static final String[] NAME_LABEL={"姓氏","名字"};
+    private static final String[] NAME_LABEL={"Last Name","First Name"};
     private static final String[] DIALOG={"ta_sei_dialog","ta_mei_dialog"};
     private final GameUiAssets.Config config;
     private final Map<String,Bitmap> images;
@@ -74,7 +74,7 @@ final class GameInputPanel extends GameUiPanel {
         }
         kanjiTarget=arguments.length>1?arguments[1]:0;
         confirmed=new boolean[values.length];
-        setContentDescription(name?"姓名输入":"文字输入");
+        setContentDescription(name?"Name Input":"Text Input");
         setFocusableInTouchMode(true);
         canvas(width,height);
         opening(config,false);
@@ -141,9 +141,9 @@ final class GameInputPanel extends GameUiPanel {
             x+config.number(tag+"PrintX",0),y+config.number(tag+"PrintY",0),
             nameWidth(index,font,gap),font+8);
         int buttonY=Math.min(canvasHeight-50,y+h+8);
-        ok=button(config,"ok","ok",step+1<order.length?"下一步":"确定",this::confirm,
+        ok=button(config,"ok","ok",step+1<order.length?"Next":"OK",this::confirm,
             x,buttonY,96,44);
-        cancel=button(config,"cancel","cancel",step==0?"取消":"上一步",this::goBack,
+        cancel=button(config,"cancel","cancel",step==0?"Cancel":"Previous",this::goBack,
             x+104,buttonY,96,44);
     }
     private void dialog(Bitmap bitmap,int x,int y,int w,int h){
@@ -160,10 +160,10 @@ final class GameInputPanel extends GameUiPanel {
         int x=config.number("printX",300),y=config.number("printY",50);
         int font=font("fontSize",24);
         int w=Math.max(font+8,Math.min(canvasWidth-Math.max(0,x),(font+1)*Math.max(4,limits[0]/(wide?2:1))));
-        String label=kanjiTarget==2?NAME_LABEL[0]:kanjiTarget==3?NAME_LABEL[1]:"文字";
+        String label=kanjiTarget==2?NAME_LABEL[0]:kanjiTarget==3?NAME_LABEL[1]:"Text";
         addEditor(0,label,font,1,color("kakuteiFontColor",color("fontColor",Color.WHITE)),Gravity.LEFT|Gravity.CENTER_VERTICAL,
             x,y,w,font+8);
-        ok=button(config,"ok","ok","确定",this::confirm,x,Math.min(canvasHeight-48,y+font+24),100,44);
+        ok=button(config,"ok","ok","OK",this::confirm,x,Math.min(canvasHeight-48,y+font+24),100,44);
         cancel=null;
     }
     private void addEditor(int index,String label,int font,int gap,int color,int gravity,int x,int y,int w,int h){
@@ -207,7 +207,7 @@ final class GameInputPanel extends GameUiPanel {
         if(!canEdit())return;
         Editable input=editor.getText();
         if(BaseInputConnection.getComposingSpanStart(input)>=0){
-            editor.setError("请先在键盘中确认候选文字");
+            editor.setError("Please confirm candidate text on the keyboard first");
             return;
         }
         int index=order[step];
@@ -221,8 +221,8 @@ final class GameInputPanel extends GameUiPanel {
                 checkCharacters(raw);
                 if(!normalized.equals(current)){editor.setText(normalized);editor.setSelection(editor.length());}
             }
-            if(raw.length==0&&!allowEmpty){editor.setError("请输入文字");return;}
-            if(raw.length>limits[index]){editor.setError("输入超过 "+limits[index]+" 字节");return;}
+            if(raw.length==0&&!allowEmpty){editor.setError("Please enter text");return;}
+            if(raw.length>limits[index]){editor.setError("Input exceeds "+limits[index]+" bytes");return;}
             values[index]=raw;confirmed[index]=true;
         }catch(IOException invalid){editor.setError(invalid.getMessage());return;}
         if(step+1==order.length)finish(true);
@@ -231,13 +231,13 @@ final class GameInputPanel extends GameUiPanel {
     private void checkCharacters(byte[] raw) throws IOException {
         if(name&&!wide){
             for(byte value:raw)if((value&255)>0x7e||value=='#')
-                throw new IOException("此姓名输入框只接受半角文字，且不能输入 #");
+                throw new IOException("This name input only accepts half-width characters without '#'");
         }else if(wide){
             int maxLead=name?0xfc:0xef;
             for(int i=0;i<raw.length;i+=2){
                 int lead=raw[i]&255;
                 if(i+1>=raw.length||!(lead>=0x81&&lead<=0x9f||lead>=0xe0&&lead<=maxLead))
-                    throw new IOException("此输入框只接受游戏支持的全角字符");
+                    throw new IOException("This input only accepts full-width characters supported by the game");
             }
         }
     }
@@ -281,7 +281,7 @@ final class GameInputPanel extends GameUiPanel {
     }
     @Override void cancelLeave(){
         super.cancelLeave();closing=false;refreshButtons();startClock();
-        editor.setError("游戏拒绝了这次输入");
+        editor.setError("The game rejected this input");
     }
     @Override protected void onDetachedFromWindow(){
         hideKeyboard();

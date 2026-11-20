@@ -34,7 +34,7 @@ final class DeviceAudio {
             try {
                 Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO);
                 int minimum = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT);
-                if (minimum <= 0) throw new IllegalStateException("设备不支持双声道 PCM");
+                if (minimum <= 0) throw new IllegalStateException("Device does not support stereo PCM");
                 track = new AudioTrack.Builder()
                     .setAudioAttributes(attributes)
                     .setAudioFormat(new AudioFormat.Builder().setSampleRate(rate).setEncoding(AudioFormat.ENCODING_PCM_16BIT)

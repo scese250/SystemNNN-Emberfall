@@ -527,7 +527,7 @@ final class GameChartPanel extends GameUiPanel {
             PageTab tab=tabs[page];
             if(tab==null)continue;
             int target=page;
-            GameButton button=control(tab.setup,"章节 "+(page+1),
+            GameButton button=control(tab.setup,"Chapter "+(page+1),
                 ()->enqueue(PAGE,target),tab.x,tab.y,tab.enabled);
             tab.button=button;
             if(button!=null)button.prepare(this::invalidateComposition);
@@ -572,15 +572,15 @@ final class GameChartPanel extends GameUiPanel {
             ButtonArt.Setup no=new ButtonArt.Setup(config,"dialogCancel",yes,false);
             int x=config.number("dialogOkPrintX",0),y=config.number("dialogOkPrintY",0);
             if(confirmationVisible(assets,modal,canvasWidth,canvasHeight))
-                control(yes,"确认跳转",()->enqueue(CONFIRM,1),dialogX+x,dialogY+y,true);
-            cancelButton=control(no,"取消跳转",()->enqueue(CONFIRM,0),
+                control(yes,"Confirm Jump",()->enqueue(CONFIRM,1),dialogX+x,dialogY+y,true);
+            cancelButton=control(no,"Cancel Jump",()->enqueue(CONFIRM,0),
                 dialogX+config.number("dialogCancelPrintX",x+yes.width),dialogY+config.number("dialogCancelPrintY",y),true);
         }
         GameUiAssets.Config menu=assets.storyButtons.get("optionButton");
         if(options!=null&&menu!=null&&assets.game.number("optionButtonCreateFlag",1)!=0&&
             config.number("disableQuickSystemMenuButton",0)==0){
             ButtonArt.Setup art=new ButtonArt.Setup(menu,"optionButton",null,false);
-            menuButton=control(art,"菜单",()->enqueue(OPEN_OPTIONS,0),menu.number("optionButtonPrintX",0),
+            menuButton=control(art,"Menu",()->enqueue(OPEN_OPTIONS,0),menu.number("optionButtonPrintX",0),
                 menu.number("optionButtonPrintY",0),true);
             if(menuButton!=null&&warning()){
                 menuButton.setClickable(false);
@@ -826,6 +826,7 @@ final class GameChartPanel extends GameUiPanel {
         private BitmapShader centerPattern;
         MapLayer(Context context,boolean top){
             super(context);this.top=top;
+            PlayerFont.apply(paint,context);
             setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             ColorMatrix matrix=new ColorMatrix();matrix.setSaturation(0);
             grey=new ColorMatrixColorFilter(matrix);
@@ -1080,6 +1081,7 @@ final class GameChartPanel extends GameUiPanel {
             int x=descriptionOnTop?descTopX:descBottomX,y=descriptionOnTop?descTopY:descBottomY;
             image(c,sprite(config.value("filenameDescWindow","ta_chart_meswin1")),x,y);
             paint.setAntiAlias(true);
+            PlayerFont.apply(paint,getContext());
             paint.setColor(descColor);
             paint.setTextSize(descFont);
             x+=descDeltaX;

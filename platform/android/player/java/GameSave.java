@@ -70,13 +70,13 @@ final class GameSave {
         void setSkip(boolean skip);
         void tick(int ms,int x,int y,boolean advance,int choice,int[] meta);
         byte[][] content();
-        default void trimBacklog(int keep) throws IOException { throw new IOException("无法恢复回看记录"); }
-        default void systemVariables(int[] values) throws IOException { throw new IOException("无法恢复脚本系统变量"); }
-        default void scriptProgress(int[] values) throws IOException { throw new IOException("无法恢复结果记录"); }
-        default void gallery(int[] keys) throws IOException { throw new IOException("无法恢复鉴赏记录"); }
-        default void randomState(int state) throws IOException { throw new IOException("无法恢复随机数状态"); }
+        default void trimBacklog(int keep) throws IOException { throw new IOException("Unable to restore backlog records"); }
+        default void systemVariables(int[] values) throws IOException { throw new IOException("Unable to restore script system variables"); }
+        default void scriptProgress(int[] values) throws IOException { throw new IOException("Unable to restore result records"); }
+        default void gallery(int[] keys) throws IOException { throw new IOException("Unable to restore gallery records"); }
+        default void randomState(int state) throws IOException { throw new IOException("Unable to restore random state"); }
         default void clock(int date,int milliseconds) throws IOException {
-            if(date!=0)throw new IOException("无法恢复系统时间样本");
+            if(date!=0)throw new IOException("Unable to restore system time sample");
         }
     }
     final ArrayList<Run> runs=new ArrayList<>();
@@ -84,7 +84,7 @@ final class GameSave {
 
     void append(int ms,int x,int y,boolean advance,int choice) { append(ms,x,y,advance,choice,false); }
     void append(int ms,int x,int y,boolean advance,int choice,boolean skip) {
-        if (ms<0 || ms>1000 || choice<TIMED_OUT) throw new IllegalArgumentException("无效的游戏输入");
+        if (ms<0 || ms>1000 || choice<TIMED_OUT) throw new IllegalArgumentException("Invalid game input");
         if (requiresSnapshot()) { updateNativePointer(x,y); return; }
         Run last=runs.isEmpty()?null:runs.get(runs.size()-1);
         boolean extend=last!=null && last.ms==ms && last.x==x && last.y==y && last.advance==advance && last.choice==choice && last.skip==skip;
@@ -107,7 +107,7 @@ final class GameSave {
     }
     boolean requiresSnapshot(){return !runs.isEmpty()&&runs.get(0).choice==NATIVE_BASELINE;}
     void requireReplayable() throws IOException {
-        if(requiresSnapshot())throw new IOException("原生快照缺失或无效，此存档没有可回退的完整输入记录");
+        if(requiresSnapshot())throw new IOException("Native snapshot missing or invalid; save has no complete input log to rewind");
     }
     private void useNativeBaseline(int x,int y){
         runs.clear();runs.trimToSize();
@@ -131,7 +131,7 @@ final class GameSave {
         recordIndexed(values,NativeGame.SYSTEM_VARIABLES,RESET_SYSTEM_VARIABLES,SET_SYSTEM_VARIABLE);
     }
     private void recordIndexed(int[] values,int length,int reset,int set){
-        if(values.length!=length)throw new IllegalArgumentException("无效的全局脚本状态数量");
+        if(values.length!=length)throw new IllegalArgumentException("Invalid global script state count");
         if(!stateRun(reset,0,0))return;
         for(int i=0;i<values.length;i++)if(values[i]!=0&&!stateRun(set,i,values[i]))return;
     }
@@ -162,7 +162,7 @@ final class GameSave {
         }
         recordSystemVariables(system);
         recordIndexed(progress,NativeGame.SCRIPT_PROGRESS,RESET_SCRIPT_PROGRESS,SET_SCRIPT_PROGRESS);
-        if(gallery.length>MAX_GALLERY_KEYS)throw new IllegalArgumentException("鉴赏记录超过上限");
+        if(gallery.length>MAX_GALLERY_KEYS)throw new IllegalArgumentException("Gallery records exceed maximum limit");
         if(!stateRun(RESET_GALLERY,0,0))return;
         for(int i=0;i<gallery.length;){
             int startKey=gallery[i]&~31,mask=0;
@@ -194,7 +194,7 @@ final class GameSave {
         // clock read in that continuation belongs before that input.
         int last=runs.size()-1;
         Run input=runs.get(last);
-        if(input.choice<TIMED_OUT)throw new IllegalStateException("动画恢复缺少输入记录");
+        if(input.choice<TIMED_OUT)throw new IllegalStateException("Animation recovery missing input record");
         if(!reserve(input.repeats==1?1:2,1))return;
         Run clock=new Run(1,0,date,milliseconds,false,CLOCK_SAMPLE);
         if(input.repeats==1)runs.add(last,clock);
@@ -206,12 +206,12 @@ final class GameSave {
     }
     GameSave rewind(int cursor,int keepBacklog,int mouseX,int mouseY) throws IOException {
         if(cursor<=0||cursor>SNAPSHOT_CURSOR||keepBacklog<0||keepBacklog>100)
-            throw new IOException("回看检查点已失效");
+            throw new IOException("Backlog checkpoint has expired");
         GameSave prefix=new GameSave();
         // The native owner still checks the original checkpoint ID and cursor.
         // Its snapshot restores the scene even when that cursor predates compaction.
         if(requiresSnapshot()) {prefix.useNativeBaseline(mouseX,mouseY);return prefix;}
-        if(cursor>ticks)throw new IOException("回看检查点已失效");
+        if(cursor>ticks)throw new IOException("Backlog checkpoint has expired");
         int left=cursor;
         for(Run r:runs){
             if(left<=r.repeats){
@@ -221,7 +221,7 @@ final class GameSave {
             prefix.runs.add(r);
             left-=r.repeats;
         }
-        if(left!=0)throw new IOException("回看检查点已失效");
+        if(left!=0)throw new IOException("Backlog checkpoint has expired");
         prefix.ticks=cursor;
         if(keepBacklog!=0){
             // The rewound journal once included rows since evicted from the
@@ -231,7 +231,7 @@ final class GameSave {
         return prefix;
     }
     Loaded capture(int slot,long handle,int[] meta,String speaker,String body) throws IOException {
-        if(!writable())throw new IOException("尚未开始游戏");
+        if(!writable())throw new IOException("Game has not started yet");
         byte[][] content=NativeGame.content(handle); checkContent(content);
         int[] savedMeta=meta;
         if(meta[0]==NativeGame.MODAL&&NativeGame.placeMode(handle)==NativeGame.SELECT_PLACE2_MODE){
@@ -253,7 +253,7 @@ final class GameSave {
         }
         byte[] snapshot=NativeGame.snapshot(handle);
         if(journal.requiresSnapshot()&&(snapshot==null||snapshot.length==0||snapshot.length>MAX_SNAPSHOT))
-            throw new IOException("无法生成完整的原生快照");
+            throw new IOException("Unable to generate complete native snapshot");
         return new Loaded(journal,at,content,snapshot);
     }
     static void write(File file,Loaded data) throws IOException {
@@ -271,21 +271,21 @@ final class GameSave {
     static void writePayload(FileOutputStream raw,Loaded data) throws IOException {
         data.save.writeTo(raw,data.metadata,data.content);
         if(!writeSnapshot(raw,data.nativeSnapshot)&&data.save.requiresSnapshot())
-            throw new IOException("无法写入完整的原生快照");
+            throw new IOException("Unable to write complete native snapshot");
     }
     static Metadata metadata(int slot,long savedAt,String script,int[] meta,String speaker,String body) throws IOException {
-        if (meta==null || meta.length<3) throw new IOException("缺少存档位置");
+        if (meta==null || meta.length<3) throw new IOException("Missing save location");
         Metadata result=new Metadata(slot,savedAt,script,meta[0],meta[1],meta[2],
             clip(singleLine(speaker),256),clip(singleLine(body),40),false);
         validateMetadata(result); return result;
     }
     private void checkWritable(Metadata metadata,byte[][] content) throws IOException {
-        if (!writable()) throw new IOException("尚未开始游戏");
+        if (!writable()) throw new IOException("Game has not started yet");
         validateMetadata(metadata); checkContent(content);
-        if (!matchesScript(metadata.script,content[0])) throw new IOException("存档摘要与当前脚本不一致");
+        if (!matchesScript(metadata.script,content[0])) throw new IOException("Save digest does not match current script");
         int total=0;boolean hasInput=false;
         for (Run r:runs) { validateRun(r,total); total+=r.repeats;hasInput|=r.choice>=TIMED_OUT||r.choice==NATIVE_BASELINE; }
-        if (runs.size()>MAX_RUNS || total!=ticks || !hasInput) throw new IOException("存档记录不完整");
+        if (runs.size()>MAX_RUNS || total!=ticks || !hasInput) throw new IOException("Incomplete save records");
     }
     void writeTo(OutputStream raw,Metadata metadata,byte[][] content) throws IOException {
         checkWritable(metadata,content);
@@ -426,12 +426,12 @@ final class GameSave {
         DataInputStream in=new DataInputStream(new BufferedInputStream(raw));
         int magic=in.readInt();
         if(magic==MAGIC_NS2)return readModernMetadata(in);
-        if(magic!=MAGIC_NS1)throw new IOException("无法识别存档");
+        if(magic!=MAGIC_NS1)throw new IOException("Unrecognized save file");
         // NS1 puts the metadata after its fixed-size input records.
         int count=in.readInt();
-        if(count<1||count>MAX_RUNS)throw new IOException("存档长度无效");
+        if(count<1||count>MAX_RUNS)throw new IOException("Invalid save length");
         int bytes=count*LEGACY_RUN_BYTES;
-        if(in.skipBytes(bytes)!=bytes)throw new EOFException("旧版存档不完整");
+        if(in.skipBytes(bytes)!=bytes)throw new EOFException("Incomplete legacy save file");
         return readLegacyMetadata(in,modified,legacySlot);
     }
     private static Metadata readModernMetadata(DataInputStream in) throws IOException {
@@ -458,17 +458,17 @@ final class GameSave {
         BufferedInputStream buffered=new BufferedInputStream(raw); CRC32 crc=new CRC32();
         DataInputStream in=new DataInputStream(new CheckedInputStream(buffered,crc));
         int magic=in.readInt(); boolean modern=magic==MAGIC_NS2;
-        if (!modern && magic!=MAGIC_NS1) throw new IOException("无法识别存档");
+        if (!modern && magic!=MAGIC_NS1) throw new IOException("Unrecognized save file");
         Metadata metadata=null; byte[][] content=null;
         if (modern) {
             metadata=readModernMetadata(in);
             int fields=in.readInt();
-            if (fields<2 || fields>1024) throw new IOException("存档文本数量无效");
+            if (fields<2 || fields>1024) throw new IOException("Invalid save text field count");
             content=new byte[fields][];
             int bytes=0;
             for (int i=0;i<fields;i++) {
                 int length=in.readInt();
-                if (length<0 || length>MAX_CONTENT_BYTES-bytes) throw new IOException("存档文本过大");
+                if (length<0 || length>MAX_CONTENT_BYTES-bytes) throw new IOException("Save text too large");
                 bytes+=length;
                 content[i]=new byte[length];
                 in.readFully(content[i]);
@@ -479,14 +479,14 @@ final class GameSave {
                 throw new IOException("Save choices differ from the saved wait state");
         }
         int count=in.readInt();
-        if (count<1 || count>MAX_RUNS) throw new IOException("存档长度无效");
+        if (count<1 || count>MAX_RUNS) throw new IOException("Invalid save length");
         GameSave save=keepRuns?new GameSave():null; int total=0;boolean hasInput=false,needsSnapshot=false;
         ReplayOrder order=keepRuns?null:new ReplayOrder();
         IOException replayFailure=null;
         for (int i=0;i<count;i++) {
             int repeats=in.readInt(),ms=in.readInt(),x=in.readInt(),y=in.readInt();
             boolean advance=readFlag(in); int choice=in.readInt(); boolean skip=modern && readFlag(in);
-            if (!modern && choice<0) throw new IOException("旧版存档输入无效");
+            if (!modern && choice<0) throw new IOException("Invalid input in legacy save");
             Run run=new Run(repeats,ms,x,y,advance,choice,skip);
             validateRun(run,total); total+=repeats;hasInput|=choice>=TIMED_OUT||choice==NATIVE_BASELINE;
             needsSnapshot|=choice==NATIVE_BASELINE;
@@ -494,11 +494,11 @@ final class GameSave {
             catch(IOException invalid){replayFailure=invalid;}
             if (keepRuns) save.runs.add(run);
         }
-        if(!hasInput)throw new IOException("缺少存档输入");
+        if(!hasInput)throw new IOException("Missing save input");
         if (!modern) metadata=readLegacyMetadata(in,modified,legacySlot);
         if (modern) {
             long actual=crc.getValue(); long expected=Integer.toUnsignedLong(new DataInputStream(buffered).readInt());
-            if (actual!=expected) throw new IOException("存档校验失败，文件可能已损坏");
+            if (actual!=expected) throw new IOException("Save checksum failed; file may be corrupted");
         }
         byte[] snapshot=null;
         if(order!=null&&!needsSnapshot&&replayFailure==null)try{order.finish();}
@@ -509,11 +509,11 @@ final class GameSave {
         boolean validatedSnapshot=false;
         int first=buffered.read();
         if(first!=-1){
-            if(!modern||first!=(SNAPSHOT_TAG>>>24))throw new IOException("存档尾部无效");
+            if(!modern||first!=(SNAPSHOT_TAG>>>24))throw new IOException("Invalid save trailer");
             DataInputStream extension=new DataInputStream(buffered);
             int second=extension.read(),third=extension.read(),fourth=extension.read();
             if(second>=0&&third>=0&&fourth>=0){
-                if((first<<24|second<<16|third<<8|fourth)!=SNAPSHOT_TAG)throw new IOException("存档尾部无效");
+                if((first<<24|second<<16|third<<8|fourth)!=SNAPSHOT_TAG)throw new IOException("Invalid save trailer");
                 if(keepRuns)snapshot=readSnapshot(extension);
                 else{
                     validation.snapshot(extension,metadata,content,nativeRequired);
@@ -526,7 +526,7 @@ final class GameSave {
             throw new IOException("Missing or invalid required native save snapshot");
         if (save!=null) {
             if((metadata.wait==NativeGame.MODAL||metadata.wait==NativeGame.NATIVE_PANEL)&&(!save.requiresSnapshot()||snapshot==null))
-                throw new IOException("选择场景存档缺少有效原生快照");
+                throw new IOException("Choice scene save is missing a valid native snapshot");
             save.ticks=total;
             if(save.requiresSnapshot()){
                 Run last=save.lastInput();save.useNativeBaseline(last.x,last.y);
@@ -549,7 +549,7 @@ final class GameSave {
             loaded.content,meta,keepMusicPosition,migrateLegacy,restartMusic);
     }
     static void replay(Loaded loaded,long handle,int[] meta) throws IOException {
-        if(meta==null||meta.length<7)throw new IOException("缺少恢复状态");
+        if(meta==null||meta.length<7)throw new IOException("Missing recovery state");
         int[] nativeMeta=meta.length>=NativeGame.META_SIZE?meta:new int[NativeGame.META_SIZE];
         replay(loaded,new Replay() {
             public void setSkip(boolean skip) { NativeGame.setSkip(handle,skip); }
@@ -579,41 +579,41 @@ final class GameSave {
             switch(run.choice){
                 case RESET_SYSTEM_VARIABLES: system=true; return;
                 case SET_SYSTEM_VARIABLE:
-                    if(!system)throw new IOException("缺少系统变量起始记录");
+                    if(!system)throw new IOException("Missing system variable initial record");
                     return;
                 case RESET_SCRIPT_PROGRESS: progress=true; return;
                 case SET_SCRIPT_PROGRESS:
-                    if(!progress)throw new IOException("缺少结果起始记录");
+                    if(!progress)throw new IOException("Missing result initial record");
                     return;
                 case RESET_GALLERY:
                     gallery=true;galleryKeys=0;lastGalleryKey=-1;return;
                 case GALLERY_BITS:
-                    if(!gallery)throw new IOException("缺少鉴赏起始记录");
+                    if(!gallery)throw new IOException("Missing gallery initial record");
                     for(int bits=run.y;bits!=0;bits&=bits-1){
                         int key=run.x+Integer.numberOfTrailingZeros(bits);
                         if(++galleryKeys>MAX_GALLERY_KEYS || key<=lastGalleryKey)
-                            throw new IOException("无效的鉴赏起始记录");
+                            throw new IOException("Invalid gallery initial record");
                         lastGalleryKey=key;
                     }
                     return;
                 case RANDOM_STATE: recorded=true;return;
                 case CLOCK_SAMPLE:
-                    if(!recorded)throw new IOException("缺少随机数起始记录");
+                    if(!recorded)throw new IOException("Missing random state initial record");
                     clock=true;return;
                 default:
                     if(run.choice==TRIM_BACKLOG && !input)throw new IOException("Missing replay input before backlog trim");
-                    if(clock && run.repeats!=1)throw new IOException("系统时间样本对应多条输入");
+                    if(clock && run.repeats!=1)throw new IOException("System time sample corresponds to multiple inputs");
                     input|=run.choice>=TIMED_OUT;
                     clock=system=progress=gallery=false;
             }
         }
         void finish() throws IOException {
-            if(clock)throw new IOException("系统时间样本缺少对应输入");
+            if(clock)throw new IOException("System time sample missing corresponding input");
         }
     }
 
     static void replay(Loaded loaded,Replay engine,int[] meta) throws IOException {
-        if (loaded.save==null || meta==null || meta.length<7) throw new IOException("缺少恢复状态");
+        if (loaded.save==null || meta==null || meta.length<7) throw new IOException("Missing recovery state");
         loaded.save.requireReplayable();
         int[] system=null,progress=null;
         ArrayList<Integer> gallery=null;
@@ -662,7 +662,7 @@ final class GameSave {
         Metadata m=loaded.metadata; byte[][] actual=engine.content();
         if (actual==null || actual.length<1 || actual[0]==null || meta[0]!=m.wait || meta[1]!=m.word || meta[2]!=m.line ||
             !matchesScript(m.script,actual[0]) || (!m.legacy && !Arrays.deepEquals(loaded.content,actual)))
-            throw new IOException("存档与此游戏目录中的脚本、对白或选项不匹配"+(order.recorded?"":"，旧输入日志没有随机数和本地时间记录"));
+            throw new IOException("Save does not match scripts, dialogue, or choices in this game directory"+(order.recorded?"":", legacy input log has no random state or local time records"));
     }
     private static boolean matchesScript(String stored,byte[] raw){
         // Older summaries used UTF-8 replacement. NS2 still compares every raw field.
@@ -674,14 +674,14 @@ final class GameSave {
         engine.gallery(keys);
     }
     private static boolean readFlag(DataInputStream in) throws IOException {
-        int value=in.readUnsignedByte(); if (value>1) throw new IOException("存档开关无效"); return value!=0;
+        int value=in.readUnsignedByte(); if (value>1) throw new IOException("Invalid save flag"); return value!=0;
     }
     static void checkSlot(File file,Metadata metadata) throws IOException {
-        if (!metadata.legacy && metadata.slot!=SaveSlots.slotForFile(file)) throw new IOException("存档编号与文件不匹配");
+        if (!metadata.legacy && metadata.slot!=SaveSlots.slotForFile(file)) throw new IOException("Save slot does not match file");
     }
     private static void validateRun(Run r,int total) throws IOException {
         if(r.repeats<=0||r.repeats>MAX_TICKS-total||r.ms<0||r.ms>1000||r.choice<SET_SCRIPT_PROGRESS)
-            throw new IOException("存档输入无效");
+            throw new IOException("Invalid save input");
         if(r.choice<TIMED_OUT){
             boolean valid;
             switch(r.choice){
@@ -697,7 +697,7 @@ final class GameSave {
                 case NATIVE_BASELINE: valid=total==0&&r.x==0&&r.y==0;break;
                 default: valid=false;
             }
-            if(!valid||r.repeats!=1||r.ms!=0||r.advance||r.skip)throw new IOException("存档状态记录无效");
+            if(!valid||r.repeats!=1||r.ms!=0||r.advance||r.skip)throw new IOException("Invalid save state record");
         }
     }
     private static void validateMetadata(Metadata m) throws IOException {
@@ -705,13 +705,13 @@ final class GameSave {
             m.script.indexOf('\0')>=0 || m.wait<0 || m.wait>NativeGame.TITLE&&m.wait!=NativeGame.PLACE&&m.wait!=NativeGame.MODAL&&m.wait!=NativeGame.NATIVE_PANEL || m.word<0 || m.line<0 ||
             m.speaker==null || m.summary==null || m.speaker.codePointCount(0,m.speaker.length())>256 ||
             m.summary.codePointCount(0,m.summary.length())>40 || m.speaker.indexOf('\0')>=0 || m.summary.indexOf('\0')>=0)
-            throw new IOException("存档摘要无效");
+            throw new IOException("Invalid save digest");
     }
     private static void checkContent(byte[][] content) throws IOException {
-        if (content==null || content.length<2 || content.length>1024) throw new IOException("缺少存档文本");
+        if (content==null || content.length<2 || content.length>1024) throw new IOException("Missing save text");
         int bytes=0;
         for (byte[] field:content) {
-            if (field==null || field.length>MAX_CONTENT_BYTES-bytes) throw new IOException("存档文本过大"); bytes+=field.length;
+            if (field==null || field.length>MAX_CONTENT_BYTES-bytes) throw new IOException("Save text too large"); bytes+=field.length;
         }
     }
     private static String singleLine(String text) {

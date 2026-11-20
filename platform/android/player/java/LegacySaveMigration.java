@@ -40,7 +40,7 @@ final class LegacySaveMigration {
         try {
             exists(saves.resolve(CHART_DIR),true);
             finishStage();
-            if(legacyFiles==null)throw new IOException("无法访问旧版应用存档目录");
+            if(legacyFiles==null)throw new IOException("Unable to access legacy app save directory");
             Path files=legacyFiles.toPath();
             String key=UUID.nameUUIDFromBytes(game.getPath().getBytes(StandardCharsets.UTF_8)).toString();
             Path migrated=files.resolve(PREFIX+".migrated-"+key);
@@ -67,7 +67,7 @@ final class LegacySaveMigration {
             }
             if(foundLegacy)Files.createFile(migrated);
         } catch(IOException | UncheckedIOException | SecurityException e) {
-            throw new IOException("无法迁移游戏存档 · "+e.getMessage(),e);
+            throw new IOException("Unable to migrate game saves · "+e.getMessage(),e);
         }
     }
 
@@ -97,7 +97,7 @@ final class LegacySaveMigration {
         if(copies.containsKey(name) || committed(saves.resolve(name))!=null)return;
         Path sideName=saves.getFileSystem().getPath(PREFIX+READ+".ext");
         Path existing=committed(saves.resolve(sideName));
-        if(existing!=null)throw new IOException("目标已有全局进度扩展，但缺少对应的基础文件 · "+existing);
+        if(existing!=null)throw new IOException("Target already has global progress extension, but base file is missing · "+existing);
         try{
             GameProgress.MigrationFiles selected=GameProgress.migrationFiles(source);
             if(selected==null)throw new IOException("Legacy progress disappeared during migration");
@@ -140,7 +140,7 @@ final class LegacySaveMigration {
             Path relative=stage.relativize(path);
             boolean directory=chartDirectory(relative);
             if(!(directory||ownedFile(relative)||retiredSlot(relative)) || !exists(path,directory))
-                throw new IOException("无法识别迁移暂存项 · "+path);
+                throw new IOException("Unrecognized migration staging item · "+path);
         }
         for(Path path:pending){
             if(path.equals(stage)||path.equals(ready))continue;
@@ -202,7 +202,7 @@ final class LegacySaveMigration {
         try{attributes=Files.readAttributes(path,BasicFileAttributes.class,LinkOption.NOFOLLOW_LINKS);}
         catch(NoSuchFileException e){return false;}
         if(!(directory?attributes.isDirectory():attributes.isRegularFile()))
-            throw new IOException("文件类型不符 · "+path);
+            throw new IOException("File type mismatch · "+path);
         return true;
     }
 }

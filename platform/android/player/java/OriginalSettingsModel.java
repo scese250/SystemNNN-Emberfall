@@ -174,7 +174,7 @@ final class OriginalSettingsModel {
                 changeCharacterImage?c.value("voiceNameChangeVar"+(i+1),""):""));
             previousCharacter=b;
         }
-        String[] kinds={"screen","skip","auto"},modeKeys={"fullscreen","skipReadOnly","autoEnabled"},modeLabels={"显示模式","快进范围","自动播放"};
+        String[] kinds={"screen","skip","auto"},modeKeys={"fullscreen","skipReadOnly","autoEnabled"},modeLabels={"Display Mode","Skip Scope","Auto Play"};
         for(int i=0;i<kinds.length;i++)if(c.number(kinds[i]+"ModeButtonExistFlag",1)!=0){String p=kinds[i];
             Button first=button(p+"1Button",null,true);
             modes.add(new Choice(modeKeys[i],modeLabels[i],page(p+"ModeButtonPrintPage",1),i<2,

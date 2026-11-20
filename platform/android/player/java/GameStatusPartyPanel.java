@@ -214,7 +214,7 @@ final class GameStatusPartyPanel extends GameUiPanel {
             x=config.number("BackPrintX",x);
             y=config.number("BackPrintY",y);
         }
-        back=control(new ButtonArt.Setup(cfg,"Back",null,false),"ta_backButton","返回",BACK,0,x,y,false);
+        back=control(new ButtonArt.Setup(cfg,"Back",null,false),"ta_backButton","Back",BACK,0,x,y,false);
     }
 
     private GameButton control(ButtonArt.Setup setup,String fallback,String label,int action,int value,
@@ -246,7 +246,7 @@ final class GameStatusPartyPanel extends GameUiPanel {
             GameRunner.Modal.Row row=options.get(id);
             if(row==null||!row.enabled())continue;
             Point at=base(place(id));
-            check("onOff"+id+"Button",(row.flags&SELECTED)!=0,"显示位置 "+id,id,
+            check("onOff"+id+"Button",(row.flags&SELECTED)!=0,"Show Slot "+id,id,
                 at.x+config.number("checkPrintDeltaX",100),at.y+config.number("checkPrintDeltaY",0));
         }
         for(int id=1;id<=count;id++){
@@ -256,9 +256,9 @@ final class GameStatusPartyPanel extends GameUiPanel {
             Point at=base(place);
             ButtonArt.Setup up=new ButtonArt.Setup(config,"up"+id,null,false);
             ButtonArt.Setup down=new ButtonArt.Setup(config,"down"+id,up,false);
-            if(place>0)control(up,"","上移位置 "+id,PAGE,-id,
+            if(place>0)control(up,"","Move Up "+id,PAGE,-id,
                 at.x+config.number("upPrintDeltaX",150),at.y+config.number("upPrintDeltaY",0),true);
-            if(place+1<count)control(down,"","下移位置 "+id,PAGE,id,
+            if(place+1<count)control(down,"","Move Down "+id,PAGE,id,
                 at.x+config.number("downPrintDeltaX",150),at.y+config.number("downPrintDeltaY",50),true);
         }
     }
@@ -276,7 +276,7 @@ final class GameStatusPartyPanel extends GameUiPanel {
             int x=config.number(key+"1PrintX",prevX),y=config.number(key+"1PrintY",prevY);
             int checkedX=config.number(key+"2PrintX",x),checkedY=config.number(key+"2PrintY",y);
             boolean selected=id==preset();
-            control(selected?second:first,"","布局 "+id,GROUP,id-1,selected?checkedX:x,selected?checkedY:y,true);
+            control(selected?second:first,"","Layout "+id,GROUP,id-1,selected?checkedX:x,selected?checkedY:y,true);
             prevX=checkedX+second.width;
             prevY=checkedY;
             previous=second;
@@ -295,14 +295,14 @@ final class GameStatusPartyPanel extends GameUiPanel {
                 x=config.number(key+"2PrintX",x);
                 y=config.number(key+"2PrintY",y);
             }
-            check(key,checked,"显示参数 "+id,-id,x,y);
+            check(key,checked,"Show Parameter "+id,-id,x,y);
         }
         for(int id=1;id<=fieldCount(faces,"etcNumber",0);id++){
             GameRunner.Modal.Row row=options.get(-1000-id);
             if(row==null||!row.enabled())continue;
             Point at=extraBase(id);
             // CCommonPrintParty uses the default X offset and reads only the configurable Y offset.
-            check("etc"+id+"OnOffButton",integer(row.detail,0)<=0,"显示附加参数 "+id,-1000-id,
+            check("etc"+id+"OnOffButton",integer(row.detail,0)<=0,"Show Extra Parameter "+id,-1000-id,
                 at.x+100,at.y+config.number("etcPrintDeltaY",0));
         }
     }
@@ -730,6 +730,7 @@ final class GameStatusPartyPanel extends GameUiPanel {
 
         ArtLayer(Context context){
             super(context);
+            PlayerFont.apply(paint,context);
             setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         }
 

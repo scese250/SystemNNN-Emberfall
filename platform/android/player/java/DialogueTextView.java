@@ -37,6 +37,7 @@ final class DialogueTextView extends TextView {
 
     static DialogueTextView panel(Context context,DialogueMarkup text,DialogueMarkup.Style style,int font,int color){
         DialogueTextView view=new DialogueTextView(context);
+        PlayerFont.apply(view,context);
         view.setText(text.text);
         view.setTextColor(color);
         view.setTextSize(TypedValue.COMPLEX_UNIT_PX,font);

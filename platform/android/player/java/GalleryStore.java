@@ -18,18 +18,18 @@ final class GalleryStore {
 
     private int[] readFile() throws IOException {
         try (DataInputStream in=new DataInputStream(new BufferedInputStream(file.openRead()))) {
-            if (in.readInt()!=MAGIC) throw new IOException("鉴赏记录格式无效");
+            if (in.readInt()!=MAGIC) throw new IOException("Invalid gallery record format");
             int count=in.readInt();
-            if (count<0 || count>LIMIT) throw new IOException("鉴赏记录数量无效");
+            if (count<0 || count>LIMIT) throw new IOException("Invalid gallery record count");
             int[] keys=new int[count];
             for (int i=0;i<count;i++) {
                 int key=in.readInt(),kind=key>>>28;
                 if (kind<1 || kind>5 || kind==3 && (key&0x0fffffff)>=256 || kind==4 && (key&0x0fffffff)>=4096 ||
                     kind==5 && (((key>>>16)&0xfff)>=1024 || (key&0xffff)>=32) ||
-                    i>0 && key<=keys[i-1]) throw new IOException("鉴赏记录项目无效");
+                    i>0 && key<=keys[i-1]) throw new IOException("Invalid gallery record entry");
                 keys[i]=key;
             }
-            if (in.read()!=-1) throw new IOException("鉴赏记录尾部无效");
+            if (in.read()!=-1) throw new IOException("Invalid trailing data in gallery records");
             return keys;
         } catch (FileNotFoundException e) {
             if (file.getBaseFile().exists()) throw e;
@@ -39,7 +39,7 @@ final class GalleryStore {
 
     void write(int[] keys) throws IOException {
         synchronized (GalleryStore.class) {
-            if(keys.length>LIMIT)throw new IOException("鉴赏记录达到容量上限");
+            if(keys.length>LIMIT)throw new IOException("Gallery records reached capacity limit");
             if(Arrays.equals(keys,readFile()))return;
             FileOutputStream raw=file.startWrite();
             try {

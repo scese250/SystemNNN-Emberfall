@@ -88,7 +88,7 @@ final class GalleryCatalog {
             catch(CharacterCodingException e){data=new String(bytes,StandardCharsets.ISO_8859_1);unicode=false;}
             if(data.startsWith("\ufeff"))data=data.substring(1);
             List<String> fields=tokens(data,!unicode);
-            if(fields.size()%2!=0||fields.size()/2>4096)throw new IOException("动画鉴赏列表格式无效");
+            if(fields.size()%2!=0||fields.size()/2>4096)throw new IOException("Invalid movie gallery list format");
             for(int i=0;i<fields.size();i+=2){
                 String name=fields.get(i),title=fields.get(i+1);
                 entries.add(new Movie(i/2+1,movieFile(root,unicode?name:GameResourcePaths.decodeFilename(raw(name))),unicode?title:decode(codec,title)));
@@ -98,7 +98,7 @@ final class GalleryCatalog {
     }
     static Movie openingMovie(File root,GameUiAssets.Config print) throws IOException {
         String name=GameResourcePaths.decodeFilename(raw(print.value("movieFileName","default.wmv")));
-        return new Movie(0,movieFile(root,name),"开场动画");
+        return new Movie(0,movieFile(root,name),"Opening Movie");
     }
     static final class ScrollAxis {
         final int direction,tiles,time,wait;
@@ -245,7 +245,7 @@ final class GalleryCatalog {
             List<String> rows=tokens(root,"nya","listenbgmlist.xtx");
             // CCommonListenBGM reads GetNameKosuu() / 8 complete records.
             int count=rows.size()/8;
-            if (count>4096) throw new IOException("音乐鉴赏列表格式无效");
+            if (count>4096) throw new IOException("Invalid music gallery list format");
             for (int i=0;i<count;i++) songs.add(new Song(rows,i*8,codec,handle));
         }
     }
@@ -273,7 +273,7 @@ final class GalleryCatalog {
             List<String> names=cgTokens(new String(bytes,StandardCharsets.ISO_8859_1));
             if (names.isEmpty()) break;
             total+=names.size();
-            if (total>16384) throw new IOException("CG 列表超过容量");
+            if (total>16384) throw new IOException("CG list exceeds maximum capacity");
             albums.add(blocks(names));
         }
     }
@@ -409,29 +409,29 @@ final class GalleryCatalog {
         byte[] raw=GameTextDecoder.readBounded(data,1024*1024);
         ByteBuffer in=ByteBuffer.wrap(raw).order(ByteOrder.LITTLE_ENDIAN);
         if (raw.length<8 || raw.length%4!=0 || in.getInt()!=raw.length)
-            throw new IOException("scene.dat 文件长度无效");
+            throw new IOException("Invalid scene.dat file length");
         int groups=count(in,80);
         for (int group=0;group<groups;group++) {
             int entries=count(in,4096);
             List<Scene> row=new ArrayList<>();
             for (int i=0;i<entries;i++) {
-                if (in.remaining()<8) throw new IOException("scene.dat 场景记录不完整");
+                if (in.remaining()<8) throw new IOException("Incomplete scene record in scene.dat");
                 long scriptId=Math.abs((long)in.getInt());
                 int filmCount=count(in,4096);
                 if (scriptId>=project.size() || scriptId>4095 || filmCount==0)
-                    throw new IOException("scene.dat 场景引用无效");
+                    throw new IOException("Invalid scene reference in scene.dat");
                 int[] films=new int[filmCount];
                 for (int j=0;j<filmCount;j++) {
                     int film=in.getInt();
-                    if (film==0 || film>65536 || film< -65536) throw new IOException("scene.dat 片段编号无效");
+                    if (film==0 || film>65536 || film< -65536) throw new IOException("Invalid film index in scene.dat");
                     films[j]=film;
                 }
                 row.add(new Scene((int)scriptId,project.get((int)scriptId),films));
             }
             scenes.add(row);
-            sceneNames.add("回想分类 "+(group+1));
+            sceneNames.add("Scene Group "+(group+1));
         }
-        if (in.hasRemaining()) throw new IOException("scene.dat 尾部无效");
+        if (in.hasRemaining()) throw new IOException("Invalid trailing data in scene.dat");
         int group=-1,index=0;
         Scene current=null;
         for (String token:tokens(root,"nya","sceneVoice.xtx")) {
@@ -450,9 +450,9 @@ final class GalleryCatalog {
         }
     }
     private static int count(ByteBuffer in,int limit) throws IOException {
-        if (in.remaining()<4) throw new IOException("scene.dat 记录不完整");
+        if (in.remaining()<4) throw new IOException("Incomplete record in scene.dat");
         int count=in.getInt();
-        if (count<0 || count>limit || count>in.remaining()/4) throw new IOException("scene.dat 数量无效");
+        if (count<0 || count>limit || count>in.remaining()/4) throw new IOException("Invalid count in scene.dat");
         return count;
     }
     static byte[] raw(String text) { return text.getBytes(StandardCharsets.ISO_8859_1); }
@@ -509,7 +509,7 @@ final class GalleryCatalog {
         return end>comma+1&&end<data.length()&&data.charAt(end)=='/';
     }
     private static List<String> tokens(String data,boolean cp932,boolean cg) throws IOException {
-        if (data.indexOf('\0')>=0) throw new IOException("鉴赏列表含有无效字节");
+        if (data.indexOf('\0')>=0) throw new IOException("Gallery list contains null bytes");
         List<String> fields=new ArrayList<>();
         int pos=0;
         while (pos<data.length()) {
@@ -523,7 +523,7 @@ final class GalleryCatalog {
                 boolean lead=cp932&&(c>=0x81 && c<=0x9f || c>=0xe0 && c<=0xfc);
                 pos+=lead && pos+1<data.length()?2:1;
             }
-            if (pos-start>255 || fields.size()==65536) throw new IOException("鉴赏列表超出格式上限");
+            if (pos-start>255 || fields.size()==65536) throw new IOException("Gallery list exceeds format limit");
             fields.add(data.substring(start,pos));
         }
         return fields;
@@ -554,7 +554,7 @@ final class GalleryCatalog {
         int page=Math.max(0,Math.min(pages-1,requested)),from=page*perPage,to=Math.min(size,from+perPage);
         if (screen==Screen.VIEW) {
             List<CgVariant> images=albums.get(group).get(index).unlocked(keys,group);
-            if (images.isEmpty()) throw new IOException("这张 CG 尚未解锁");
+            if (images.isEmpty()) throw new IOException("This CG is not unlocked yet");
             pages=images.size(); page=Math.floorMod(requested,pages);
             CgVariant variant=images.get(page);
             cgImage=cgImage(handle,variant,cfg);
@@ -589,7 +589,7 @@ final class GalleryCatalog {
                 Scene scene=groupScenes.get(i);
                 boolean open=scene.unlocked(keys);
                 if (open) unlocked++;
-                if (i>=from && i<to) cells.add(new Cell(i,"回想 "+(i+1),scene.thumbnail.isEmpty()?"":"sys/sc/"+scene.thumbnail,"",open));
+                if (i>=from && i<to) cells.add(new Cell(i,"Scene "+(i+1),scene.thumbnail.isEmpty()?"":"sys/sc/"+scene.thumbnail,"",open));
             }
         } else if (screen==Screen.MUSIC) {
             boolean check=cfg.number("checkListen",0)!=0;
@@ -606,7 +606,7 @@ final class GalleryCatalog {
                 cells.add(new Cell(i,label,song.duration,open,bytes));
             }
         } else if (screen==Screen.CG_GROUP || screen==Screen.SCENE_GROUP) {
-            for (int i=0;i<size;i++) cells.add(new Cell(i,screen==Screen.CG_GROUP?"CG 分类 "+(i+1):sceneNames.get(i),"","",true));
+            for (int i=0;i<size;i++) cells.add(new Cell(i,screen==Screen.CG_GROUP?"CG Group "+(i+1):sceneNames.get(i),"","",true));
         }
         int basic=DialogueLayout.clamp(cfg.number("basicButtonNumber",4),0,64);
         List<MenuModeButton> modes=screen==Screen.OMAKE?MenuModeButton.read(cfg,handle,basic,basic>=5?5:4):Collections.emptyList();
@@ -683,7 +683,7 @@ final class GalleryCatalog {
             first=sprite(handle,variant.picture(false,goreTag,0),true);
             firstFrame=-1;
         }
-        if(first==null)throw new IOException("无法读取 CG 图像");
+        if(first==null)throw new IOException("Unable to read CG image");
         List<Bitmap> tiles=new ArrayList<>();
         tiles.add(first);
         int columns=animate?1:variant.x.tiles;

@@ -59,7 +59,7 @@ final class GameSettingsPanel extends GameUiPanel {
         this.onPageChanged=onPageChanged;
         previewMutedVoice=assets.config.number("playOffToOnSoundFlag",0)!=0;
         previewMarkup=new DialogueMarkup.Style(assets.game.fields());
-        canvas(width,height);model=settingsModel();setContentDescription("环境设置");
+        canvas(width,height);model=settingsModel();setContentDescription("Settings");
         page=openingPage(assets.config,pageCount(model),initialPage);
         printMode=12;
         if(model.original){uiBackground(assets.config,12,page+1,warmup);backgroundPage=page;}
@@ -123,14 +123,14 @@ final class GameSettingsPanel extends GameUiPanel {
         if(backgroundPage!=page){uiBackground(assets.config,12,page+1);backgroundPage=page;}
         if(model.pageMode==2)for(int i=0;i<model.tabs.size();i++){
             final int target=i;boolean active=page==i;
-            drawButton(model.tabs.get(i),active,"设置第 "+(i+1)+" 页",radioAction(active,()->selectPage(target)));
+            drawButton(model.tabs.get(i),active,"Settings Page "+(i+1),radioAction(active,()->selectPage(target)));
         }
         else if(model.pageMode==1)pageArrows(assets.config,page,model.pages,616,16,646,this::selectPage);
         for(OriginalSettingsModel.Slider s:model.sliders)if(s.page==page+1)volume(s);
         for(OriginalSettingsModel.CharacterControl c:model.characters)if(c.page==page+1)character(c);
         for(OriginalSettingsModel.Choice c:model.modes)if(c.page==page+1)mode(c);
         for(OriginalSettingsModel.Choice c:model.checks)if(c.page==page+1){boolean value=preferences.getBoolean(c.key,c.defaultValue);
-            String state=c.key.equals("continueVoice")?(value?"：继续播放":"：跳过"):(value?"：开":"：关");
+            String state=c.key.equals("continueVoice")?(value?": Continue":": Skip"):(value?": On":": Off");
             drawButton(c.buttons[0],value,checkLabel(c.key)+state,()->{writeBoolean(c.key,!value);showPage(page);});}
         for(OriginalSettingsModel.Extended group:model.extended)if(group.page==page+1)extended(group);
         if(page+1==model.page("systemVoiceButtonPrintPage",1))systemVoices();
@@ -152,18 +152,18 @@ final class GameSettingsPanel extends GameUiPanel {
             Runnable cue=()->play(setup,false,previewMutedVoice);
             // STARTCLICK sounds before NUMBER changes the radio selection. An
             // immediate button combines both events and uses the new theme.
-            drawButton(art,active,"系统语音主题 "+theme,radioAction(active,()->{
+            drawButton(art,active,"System Voice Theme "+theme,radioAction(active,()->{
                 writeInt("systemVoiceSelection",theme);
                 if(setup.clickTime==0)cue.run();
                 showPage(page);
             }),setup.clickTime==0?()->{}:cue);
         }
     }
-    private String checkLabel(String key){switch(key){case "continueVoice":return "阅读文本时的语音播放";case "autoContinue":return "确认选项后关闭自动播放";
-        case "autoSkip":return "确认选项后关闭快进";case "changeReadColor":return "已读台词变色";case "changeSelectColor":return "已选选项变色";default:return key;}}
+    private String checkLabel(String key){switch(key){case "continueVoice":return "Voice Playback During Reading";case "autoContinue":return "Stop Auto-Play After Choice";
+        case "autoSkip":return "Stop Skip After Choice";case "changeReadColor":return "Change Read Text Color";case "changeSelectColor":return "Change Selected Choice Color";default:return key;}}
     private void volume(OriginalSettingsModel.Slider s){
         String enabledKey="enabled."+s.key;boolean enabled=s.button==null||preferences.getBoolean(enabledKey,true);
-        if(s.button!=null)drawButton(s.button,enabled,s.kind+(enabled?"：开":"：关"),()->{
+        if(s.button!=null)drawButton(s.button,enabled,s.kind+(enabled?": On":": Off"),()->{
             writeBoolean(enabledKey,!enabled);showPage(page);
         },()->play(s.button.state(enabled),s.index==3&&previewMutedVoice,false));
         int maximum=s.index==0?3:s.index==7?2:100,initial=s.index==0||s.index==7?1:s.index==6||s.index==8?100:80;
@@ -171,7 +171,7 @@ final class GameSettingsPanel extends GameUiPanel {
         String exact="originalSlider."+s.kind;
         int position=preferences.getInt(exact,s.fromPreference(value));
         if(s.index==0)sampleSpeed=position;
-        String label=s.index==0?"文字速度":s.index==7?"自动播放速度":s.kind;
+        String label=s.index==0?"Text Speed":s.index==7?"Auto Speed":s.kind;
         ValueBar bar=new ValueBar(getContext(),assets.image(s.image),label,0,s.steps,position,s.width,s.height,20,null,next->{
             write(()->preferences.edit().putInt(s.key,s.toPreference(next)).putInt(exact,next).apply());
             if(s.index==0){sampleSpeed=next;restartSample();}
@@ -191,7 +191,7 @@ final class GameSettingsPanel extends GameUiPanel {
         if(c.ids.length==0)return;boolean enabled=true;for(int id:c.ids)enabled&=preferences.getBoolean("character."+id+".enabled",true);
         final boolean next=!enabled;
         ButtonArt.Setup setup=c.button.state(enabled);
-        GameButton button=drawButton(c.button,enabled,"角色组 "+(c.index+1)+(enabled?"：语音开":"：语音关"),()->{
+        GameButton button=drawButton(c.button,enabled,"Character Group "+(c.index+1)+(enabled?": Voice On":": Voice Off"),()->{
             write(()->{SharedPreferences.Editor edit=preferences.edit();for(int id:c.ids)edit.putBoolean("character."+id+".enabled",next);edit.apply();});showPage(page);
         },()->playCharacter(c,!next,ButtonArt.SoundEvent.CLICK),art==null?null:art.image(enabled));
         if(c.soundChange!=null)button.feedback(event->{
@@ -200,7 +200,7 @@ final class GameSettingsPanel extends GameUiPanel {
         if(c.hasSlider){
             int value=Math.max(model.characterMin,Math.min(preferences.getInt("character."+c.ids[0]+".steps",0),model.characterMax));
             Bitmap image=assets.image(assets.config.value("filenameCharaVoiceVolume","ta_bar02"));
-            ValueBar bar=new ValueBar(getContext(),image,"角色组 "+(c.index+1)+"音量补正",
+            ValueBar bar=new ValueBar(getContext(),image,"Character Group "+(c.index+1)+" Volume Trim",
                 model.characterMin,model.characterMax,value,c.width,c.height,20,null,
                 steps->write(()->{SharedPreferences.Editor edit=preferences.edit();for(int id:c.ids)edit.putInt("character."+id+".steps",steps);edit.apply();}));
             int configured=assets.config.number("charaVoiceVolumeSE"+(c.index+1),0);
@@ -223,9 +223,9 @@ final class GameSettingsPanel extends GameUiPanel {
         for(int i=0;i<c.buttons.length;i++){final int option=i;
             String label;
             switch(c.key){
-                case "fullscreen": label=i==0?"窗口":"全屏";break;
-                case "skipReadOnly": label=i==0?"仅已读":"全部文字";break;
-                case "autoEnabled": label=i==0?"手动":"自动";break;
+                case "fullscreen": label=i==0?"Windowed":"Fullscreen";break;
+                case "skipReadOnly": label=i==0?"Read Only":"All Text";break;
+                case "autoEnabled": label=i==0?"Manual":"Auto";break;
                 default: label=Integer.toString(i+1);
             }
             boolean active=selected==i;
@@ -238,7 +238,7 @@ final class GameSettingsPanel extends GameUiPanel {
     private void extended(OriginalSettingsModel.Extended group){
         String key=RuntimeSettingsAdapter.extendedKey(group.parameter());
         int value=preferences.getInt(key,0);
-        String label=assets.config.text("exp"+(group.index+1)+(group.check?"Check":"Radio")+"Label","扩展设置 "+(group.index+1));
+        String label=assets.config.text("exp"+(group.index+1)+(group.check?"Check":"Radio")+"Label","Extended Setting "+(group.index+1));
         if(group.check){
             boolean checked=value!=0;
             drawButton(group.buttons[0],checked,label,()->{writeInt(key,checked?0:1);showPage(page);}).setEnabled(!group.locked(configMask));
@@ -276,7 +276,7 @@ final class GameSettingsPanel extends GameUiPanel {
         image.setAlpha(opacity);
         image.setSoundEffectsEnabled(false);
         if(cycle!=null){
-            image.setContentDescription("切换对话框样式");
+            image.setContentDescription("Switch Dialogue Style");
             image.setOnClickListener(v->cycle.run());
         }
         put(image,x,y,w,h);
@@ -385,13 +385,13 @@ final class GameSettingsPanel extends GameUiPanel {
         return button;
     }
     private void fallback(){
-        for(int tab=0;tab<2;tab++){final int target=tab;chip(tab==0?"声音设置":"文字设置",page==tab,()->showPage(target),45,105+70*tab,210,54);}
-        if(page==0){String[] labels={"背景音乐","音效","角色语音","特效语音"},keys={"musicVolume","soundVolume","voiceVolume","effectVoiceVolume"};
+        for(int tab=0;tab<2;tab++){final int target=tab;chip(tab==0?"Audio Settings":"Text Settings",page==tab,()->showPage(target),45,105+70*tab,210,54);}
+        if(page==0){String[] labels={"Music","Sound","Voice","Effect Voice"},keys={"musicVolume","soundVolume","voiceVolume","effectVoiceVolume"};
             for(int i=0;i<4;i++){final String key=keys[i];put(text(labels[i],28,0xffa4e7ff),330,90+120*i,700,38);
                 put(volumeBar("ta_bar01",labels[i],0,100,preferences.getInt(key,80),710,30,v->writeInt(key,v)),330,124+120*i,710,50);}
-        }else{options("文字速度","textSpeed",new String[]{"慢","标准","快","立即"},preferences.getInt("textSpeed",1),90,false);
-            options("自动播放速度","autoSpeed",new String[]{"慢","标准","快"},preferences.getInt("autoSpeed",1),210,false);
-            options("快进范围","skipReadOnly",new String[]{"仅已读","全部文字"},preferences.getBoolean("skipReadOnly",true)?0:1,330,true);}
+        }else{options("Text Speed","textSpeed",new String[]{"Slow","Normal","Fast","Instant"},preferences.getInt("textSpeed",1),90,false);
+            options("Auto Speed","autoSpeed",new String[]{"Slow","Normal","Fast"},preferences.getInt("autoSpeed",1),210,false);
+            options("Skip Scope","skipReadOnly",new String[]{"Read Only","All Text"},preferences.getBoolean("skipReadOnly",true)?0:1,330,true);}
         returnButton=back(assets.config,close);
     }
     private void options(String label,String key,String[] values,int selected,int y,boolean bool){

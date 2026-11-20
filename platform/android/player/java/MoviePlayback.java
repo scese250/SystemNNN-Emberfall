@@ -59,7 +59,7 @@ final class MoviePlayback extends FrameLayout implements TextureView.SurfaceText
             () -> Log.i(TAG, "Movie playing muted while audio focus is unavailable"));
         setBackgroundColor(Color.BLACK);
         setSoundEffectsEnabled(false);
-        setContentDescription(canSkip ? "动画播放 · 轻触返回" : "动画播放");
+        setContentDescription(canSkip ? "Movie Playback · Tap to return" : "Movie Playback");
         setOnClickListener(v -> skip());
         picture = new TextureView(context);
         picture.setSurfaceTextureListener(this);

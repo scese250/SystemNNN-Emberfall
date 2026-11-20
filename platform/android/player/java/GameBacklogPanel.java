@@ -84,7 +84,7 @@ final class GameBacklogPanel extends GameUiPanel {
     }
     void entries(List<GameRunner.BacklogLine> entries){
         rows.clear();
-        Paint measure=new Paint(Paint.ANTI_ALIAS_FLAG);measure.setTextSize(font);
+        Paint measure=new Paint(Paint.ANTI_ALIAS_FLAG);PlayerFont.apply(measure,getContext());measure.setTextSize(font);
         int available=Math.max(font,canvasWidth-x-Math.max(font,canvasWidth/10));
         for(GameRunner.BacklogLine line:entries){
             if(line.color<0)for(int i=0;i<gap;i++)rows.add(new Row(DialogueMarkup.EMPTY,style.bodyColor,Collections.emptyList(),0));
@@ -192,7 +192,7 @@ final class GameBacklogPanel extends GameUiPanel {
         GameUiAssets.Config back=cfg.has("BackFileName")?cfg:assets.load;
         int w=limit(back.number("BackSizeX",220),1,4096),h=limit(back.number("BackSizeY",54),1,4096);
         GameButton.Spec spec=new GameButton.Spec(back,"Back",null,w,h);
-        animatedButton(spec,sprite(spec.image),"返回",()->{},close,
+        animatedButton(spec,sprite(spec.image),"Back",()->{},close,
             back.number("BackPrintX",canvasWidth-w-25),back.number("BackPrintY",canvasHeight-h-10),w,h);
     }
     private void rowActions(Row row,int top){
@@ -218,19 +218,19 @@ final class GameBacklogPanel extends GameUiPanel {
     private void voice(Row row,int vx,int vy,int w,int h){
         Runnable action=()->{replay.play(row.voices.get(row.nextVoice));row.nextVoice=(row.nextVoice+1)%row.voices.size();};
         if(cfg.number("voicePicFlag",0)!=0){
-            animateIcon(cfg.value("filenameVoice","ta_backlogvoice"),"voicePic",w,h,"重播语音",vx,vy,()->{},action);
+            animateIcon(cfg.value("filenameVoice","ta_backlogvoice"),"voicePic",w,h,"Replay Voice",vx,vy,()->{},action);
             return;
         }
         String def=assets.sharedConfig.singleByteText()?"SD":"♪";
-        textActionButton(cfg.text("voiceMessage",def),Color.WHITE,"重播语音",vx,vy,w,h,()->{},action);
+        textActionButton(cfg.text("voiceMessage",def),Color.WHITE,"Replay Voice",vx,vy,w,h,()->{},action);
     }
     private void jumpButton(long id,int jx,int jy,int w,int h){
         if(cfg.number("jumpPicFlag",0)!=0){
-            animateIcon(cfg.value("filenameJump",""),"jumpPic",w,h,"跳转到此处",jx,jy,()->{},()->jump.accept(id));
+            animateIcon(cfg.value("filenameJump",""),"jumpPic",w,h,"Jump Here",jx,jy,()->{},()->jump.accept(id));
             return;
         }
         String def=assets.sharedConfig.singleByteText()?"JP":"⇒";
-        textActionButton(cfg.text("jumpMessage",def),Color.WHITE,"跳转到此处",jx,jy,w,h,()->{},()->jump.accept(id));
+        textActionButton(cfg.text("jumpMessage",def),Color.WHITE,"Jump Here",jx,jy,w,h,()->{},()->jump.accept(id));
     }
     private void arrow(boolean up){
         String prefix=up?"upArrow":"downArrow";
@@ -239,7 +239,7 @@ final class GameBacklogPanel extends GameUiPanel {
         int ay=cfg.number(prefix+"PrintY",up?y-step:y+visible*step);
         Runnable cue=()->sound(cfg.number(prefix+"ClickSound",0)-1,-1);
         Runnable action=()->move(up?-1:1);
-        String description=up?"较早记录":"较新记录";
+        String description=up?"Earlier Records":"Newer Records";
         if(cfg.number("updownArrowPicFlag",0)!=0){
             boolean animated=cfg.number("updownArrowAnimeFlag",0)!=0;
             String name;

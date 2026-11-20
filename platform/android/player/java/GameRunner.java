@@ -300,7 +300,7 @@ final class GameRunner {
         try{
             byte[] path=root.getPath().getBytes(StandardCharsets.UTF_8);
             long candidate=token==0?NativeGame.open(path,rate):NativeGame.openWithRuntime(path,rate,token);
-            if(candidate==0)throw new IllegalStateException("原生引擎未创建游戏会话");
+            if(candidate==0)throw new IllegalStateException("Native engine did not create game session");
             try{
                 File storage=NativeGame.legacyChart(candidate)?savePaths.directory():chartDirectory;
                 NativeGame.setChartStorage(candidate,storage.getPath().getBytes(StandardCharsets.UTF_8));
@@ -873,7 +873,7 @@ final class GameRunner {
         movieError=new MovieError(this,data,capability,startup);
         if(!GameCodecErrorPanel.available(uiAssets,data)){
             Log.w("SystemNNN","Movie error interface resources unavailable; skipping movies");
-            ui.notice("动画播放失败，已跳过影片");
+            ui.notice("Movie playback failed, skipping video");
             resolveMovieError(movieError,false);
             return;
         }
@@ -923,7 +923,7 @@ final class GameRunner {
                 Integer slot=null;
                 if(action==TitleMenu.Action.CONTINUE||action==TitleMenu.Action.LAST_LOAD){
                     slot=slots.lastSelectedSlot();
-                    if(slot==null)throw new FileNotFoundException("上次的存档无法读取");
+                    if(slot==null)throw new FileNotFoundException("Previous save file cannot be read");
                 }
                 if(slot!=null)openSlot(slot,false);
                 else if(action==TitleMenu.Action.SCENARIO&&!scenarioVariable.isEmpty())open(null,false,scenarioVariable,scenario);
@@ -932,7 +932,7 @@ final class GameRunner {
             catch(Exception|LinkageError e){
                 if(handle!=previous){broken(e);return;}
                 schedule();
-                ui.notice("无法进入游戏 · "+e.getMessage());
+                ui.notice("Unable to start game · "+e.getMessage());
                 onFailure.run();
             }
         }))onFailure.run();
@@ -1347,12 +1347,12 @@ final class GameRunner {
             if(!acceptsModal(modal)){done.accept(rejectedModal());return;}
             try{
                 if(!NativeGame.completeModal(handle,modal.request,accepted,elapsed,values)){
-                    ui.notice("当前输入无效");done.accept(rejectedModal());return;
+                    ui.notice("Current input is invalid");done.accept(rejectedModal());return;
                 }
                 done.accept(finishModal(modal.returnMode));
             }catch(RuntimeException e){
                 Log.w("SystemNNN","Script modal completion failed",e);
-                ui.notice("无法提交输入 · "+e.getMessage());done.accept(rejectedModal());
+                ui.notice("Unable to submit input · "+e.getMessage());done.accept(rejectedModal());
             }
         });
     }
@@ -1382,7 +1382,7 @@ final class GameRunner {
                 done.accept(new ModalUpdate(result,meta[0],0,next));
             }catch(RuntimeException e){
                 Log.w("SystemNNN","Script modal action failed",e);
-                ui.notice("无法完成操作 · "+e.getMessage());done.accept(rejectedModal());
+                ui.notice("Unable to complete operation · "+e.getMessage());done.accept(rejectedModal());
             }
         });
     }
@@ -1483,7 +1483,7 @@ final class GameRunner {
                 galleryPage=null;
                 done.accept(game);
             }catch(IOException|RuntimeException e){
-                Log.w("SystemNNN","Mini-game unavailable",e);ui.notice("无法打开小游戏");done.accept(null);
+                Log.w("SystemNNN","Mini-game unavailable",e);ui.notice("Unable to open mini-game");done.accept(null);
             }
         });
     }
@@ -1511,7 +1511,7 @@ final class GameRunner {
                 if (galleryPage==null || galleryPage.screen!=screen) enterGalleryScreen(next);
                 galleryRequest=request; publishGallery(next);
             } catch (IOException | RuntimeException e) {
-                Log.w("SystemNNN","Gallery unavailable",e);ui.notice("无法打开鉴赏 · "+e.getMessage());
+                Log.w("SystemNNN","Gallery unavailable",e);ui.notice("Unable to open gallery · "+e.getMessage());
             }
         });
     }
@@ -1565,7 +1565,7 @@ final class GameRunner {
         if(skipMovies){tasks.post(()->completeMovie(MoviePlayback.Outcome.SKIPPED,null));return;}
         if(movie==null||movie.file==null){
             pendingMovieExitColor=null;
-            tasks.post(()->completeMovie(MoviePlayback.Outcome.FAILED,"动画文件缺失"));
+            tasks.post(()->completeMovie(MoviePlayback.Outcome.FAILED,"Movie file missing"));
             return;
         }
         Log.i("SystemNNN","Movie requested "+movie.file.getName()+" gallery="+onTitle);
@@ -1682,7 +1682,7 @@ final class GameRunner {
                 galleryPage.config.number("bgmLoopFlag",0)!=0?0:1,galleryVolume);
             gallerySong=index; galleryMusicPlaying=true; galleryMusicPaused=false;
             refreshMusic(index/galleryPage.rows);
-        } catch (RuntimeException e) { ui.notice("音乐播放失败 · "+e.getMessage()); }
+        } catch (RuntimeException e) { ui.notice("Music playback failed · "+e.getMessage()); }
     }
     void moveGallerySong(int direction) {
         tasks.post(() -> {
@@ -1732,7 +1732,7 @@ final class GameRunner {
             } catch (RuntimeException e) {
                 if(plane!=0)NativeGame.releaseMessagePlane(plane);
                 if (candidate!=0) NativeGame.close(candidate);
-                ui.notice("无法进入回想 · "+e.getMessage()); return;
+                ui.notice("Unable to enter scene replay · "+e.getMessage()); return;
             }
             tasks.removeCallbacks(ticker);cancelMovieContinuation();pendingMovieExitColor=null;moviePlaying=false;movieError=null;
             stopSound(); NativeGame.close(handle);
@@ -1861,10 +1861,10 @@ final class GameRunner {
         try{
             int[] point=handle!=0&&menuOpen&&!onTitle&&!replaying&&!failed&&history!=null
                 ?NativeGame.backlogJump(handle,id):null;
-            if(point==null||point.length!=5)throw new IOException("回看检查点已失效");
+            if(point==null||point.length!=5)throw new IOException("Backlog checkpoint has expired");
             prefix=history.rewind(point[0],point[1],point[3],point[4]);
             recordReplayBaseline(prefix,handle,point[2]);
-            if(!NativeGame.restoreBacklogJump(handle,id,point[0],meta))throw new IOException("无法恢复回看检查点");
+            if(!NativeGame.restoreBacklogJump(handle,id,point[0],meta))throw new IOException("Unable to restore backlog checkpoint");
         }catch(IOException|RuntimeException e){
             ui.notice(e.getMessage());
             done.accept(false);
@@ -1905,9 +1905,9 @@ final class GameRunner {
             if(quick)quickLoadFramePending=true;
             else if(done==null)playPanelSound(uiAssets.load,"loadSound",0);
         }catch(FileNotFoundException e){
-            if(!quick)ui.notice("此槽位还没有存档");
+            if(!quick)ui.notice("This slot is empty");
         }catch(Exception e){
-            if(handle!=previous)broken(e);else ui.notice("读档失败 · "+e.getMessage());
+            if(handle!=previous)broken(e);else ui.notice("Failed to load save · "+e.getMessage());
         }finally{
             if(!success&&!failed){
                 if(done==null&&menuOpen)menu(false);else schedule();
@@ -1964,7 +1964,7 @@ final class GameRunner {
             meta[NativeGame.NATIVE_PANEL_SAVABLE]!=0;
         if(handle==0||failed||onTitle||replaying||
            (!chart&&!nativePanel&&meta[0]!=NativeGame.DIALOGUE&&meta[0]!=NativeGame.CHOICE&&meta[0]!=NativeGame.PLACE)){
-            ui.notice("当前场景无法保存");
+            ui.notice("Cannot save in the current scene");
             return;
         }
         try{
@@ -2017,14 +2017,14 @@ final class GameRunner {
     private void saveFailed(Throwable error){
         if(error instanceof CompletionException&&error.getCause()!=null)error=error.getCause();
         Log.w("SystemNNN","Unable to save progress",error);
-        if(!closing)ui.notice("保存失败 · "+error.getMessage());
+        if(!closing)ui.notice("Save failed · "+error.getMessage());
     }
     private static <T> T saveResult(Future<T> work) throws IOException {
         try{return work.get();}
-        catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("等待存档文件时被中断",e);}
+        catch(InterruptedException e){Thread.currentThread().interrupt();throw new IOException("Interrupted while waiting for save file",e);}
         catch(ExecutionException e){
             if(e.getCause() instanceof IOException)throw (IOException)e.getCause();
-            throw new IOException("存档文件操作失败",e.getCause());
+            throw new IOException("Save file operation failed",e.getCause());
         }
     }
     // The original switches out of the story mode while a modal is active.
@@ -2034,7 +2034,7 @@ final class GameRunner {
     }
     private void startSound(){
         if(audio==null)audio=new DeviceAudio(context,tasks,handle,rate,()->foreground&&!closing,
-            ()->ui.notice("系统暂未授予音频焦点。返回游戏或操作时会重试。"),(source,error)->tasks.post(()->{
+            ()->ui.notice("Audio focus not granted. Will retry when returning to game or on interaction."),(source,error)->tasks.post(()->{
                 if(audio==source&&!closing)broken(new IOException(error));
             }));
     }
@@ -2154,7 +2154,7 @@ final class GameRunner {
             boolean startsDialogue=meta[0]==NativeGame.DIALOGUE&&(oldWait!=meta[0]||oldLine!=meta[2]||oldWord!=meta[1]);
             if(startsAnimation||startsDialogue)startFrameClock();
         }catch(Exception e){
-            if(replaying){ui.notice("回想中断 · "+e.getMessage());finishReplay();}
+            if(replaying){ui.notice("Scene replay interrupted · "+e.getMessage());finishReplay();}
             else broken(e);
         }
     }
@@ -2505,7 +2505,7 @@ final class GameRunner {
                 saved.completeExceptionally(new ProgressWriteFailure(state,gallery,e));
                 tasks.post(()->{if(handle==owner&&galleryWritten==revision)galleryWritten=-1;});
                 Log.w("SystemNNN","Global progress save failed",e);
-                if(!closing)ui.notice("全局进度保存失败 · "+e.getMessage());
+                if(!closing)ui.notice("Failed to save global progress · "+e.getMessage());
                 return;
             }
             if(pending!=null&&pending.isCompletedExceptionally())PROGRESS_HANDOFFS.remove(readFile,pending);

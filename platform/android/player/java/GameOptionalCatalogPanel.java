@@ -182,7 +182,7 @@ final class GameOptionalCatalogPanel extends GameUiPanel {
             onY=config.number(key+"2PrintY",offY);
             previousOn=on;
             int target=group;
-            String label=(terms?"术语分类 ":"角色语音 ")+(group+1);
+            String label=(terms?"Term Group ":"Character Voice ")+(group+1);
             if(group==modal.group){
                 GameButton selected=new GameButton(getContext(),new GameButton.Spec(on),sprite(on.art.image),label,frameMs);
                 selected.setFocusable(false);selected.setSelected(true);
@@ -204,12 +204,12 @@ final class GameOptionalCatalogPanel extends GameUiPanel {
         downReverse=pages.number("DownUpDownReverse",0)!=0;
         String upImage=up.art.image.isEmpty()?"ta_upButton":up.art.image;
         String downImage=down.art.image.isEmpty()?"ta_downButton":down.art.image;
-        upButton=modal.page>0?originalButton(up,upImage,"上一页",
+        upButton=modal.page>0?originalButton(up,upImage,"Previous Page",
             ()->send(PAGE,modal.page-1),upX,upY):null;
-        downButton=modal.page+1<modal.pages?originalButton(down,downImage,"下一页",
+        downButton=modal.page+1<modal.pages?originalButton(down,downImage,"Next Page",
             ()->send(PAGE,modal.page+1),pages.number("DownPrintX",upX+up.width),
             pages.number("DownPrintY",upY+up.height)):null;
-        backButton=originalButton(backArt,back.value("BackFileName","ta_backButton"),"返回",
+        backButton=originalButton(backArt,back.value("BackFileName","ta_backButton"),"Back",
             ()->send(BACK,0),back.number("BackPrintX",0),back.number("BackPrintY",0));
     }
 
@@ -363,6 +363,7 @@ final class GameOptionalCatalogPanel extends GameUiPanel {
         private float scroll;
         TermDescription(){
             super(GameOptionalCatalogPanel.this.getContext());
+            PlayerFont.apply(paint,GameOptionalCatalogPanel.this.getContext());
             paint.setColor(Color.WHITE);paint.setTextSize(FONT);
         }
         void show(byte[][] text){

@@ -46,7 +46,7 @@ final class GameCodecErrorPanel extends GameUiPanel {
                 picture(name,dx,dy,dialog.getWidth(),dialog.getHeight());
             }
         }
-        String[] labels={"跳过影片","播放可用部分","结束游戏"};
+        String[] labels={"Skip Movie","Play Available Portion","Exit Game"};
         ButtonArt.Setup previous=null;
         int x=0,y=0;
         for(int i=0;i<TAGS.length;i++){

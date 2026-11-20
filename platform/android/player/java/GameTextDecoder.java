@@ -61,18 +61,18 @@ final class GameTextDecoder {
         return substitute(configuration.decode(input));
     }
     byte[] encodeInput(String input,int maxBytes) throws IOException {
-        if(input==null||maxBytes<0||maxBytes>SjisTunnelDecoder.MAX_INPUT_BYTES)throw new IOException("无效的输入长度限制");
+        if(input==null||maxBytes<0||maxBytes>SjisTunnelDecoder.MAX_INPUT_BYTES)throw new IOException("Invalid input length limit");
         ByteArrayOutputStream result=new ByteArrayOutputStream(Math.min(input.length(),maxBytes));
         for(int at=0;at<input.length();){
             int point=input.codePointAt(at);at+=Character.charCount(point);
             if(Character.isISOControl(point)||point>=0xd800&&point<=0xdfff)
-                throw new IOException("输入中含有不可用字符");
+                throw new IOException("Input contains unavailable characters");
             Integer source=inverseSubstitutions.get(point);
-            if(source!=null&&source<0)throw new IOException("这个字对应多个原版字符，无法确定游戏所需的编码");
+            if(source!=null&&source<0)throw new IOException("Character maps to multiple original characters; cannot determine game encoding");
             byte[] bytes=source==null||Character.isISOControl(source)?null:sjis.encodeCharacter(source);
             if(bytes==null&&substitutions.getOrDefault(point,point)==point)bytes=sjis.encodeCharacter(point);
-            if(bytes==null)throw new IOException("游戏编码无法表示「"+new String(Character.toChars(point))+"」");
-            if(bytes.length>maxBytes-result.size())throw new IOException("输入超过 "+maxBytes+" 字节");
+            if(bytes==null)throw new IOException("Game encoding cannot represent \""+new String(Character.toChars(point))+"\"");
+            if(bytes.length>maxBytes-result.size())throw new IOException("Input exceeds "+maxBytes+" bytes");
             result.write(bytes,0,bytes.length);
         }
         return result.toByteArray();

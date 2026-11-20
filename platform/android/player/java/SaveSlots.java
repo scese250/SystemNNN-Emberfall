@@ -108,7 +108,7 @@ final class SaveSlots {
         return pc.file(slot);
     }
     static String suffix(int slot) {
-        if (!valid(slot)) throw new IllegalArgumentException("无效的存档编号");
+        if (!valid(slot)) throw new IllegalArgumentException("Invalid save slot index");
         if (slot==AUTO) return ".resume";
         if (slot==QUICK) return ".quick.sav";
         if (slot==0) return ".sav";
@@ -281,7 +281,7 @@ final class SaveSlots {
             byte[] bytes=PcStorySave.read(file);
             return pcEntry(slot,PcStorySave.preview(bytes,file.lastModified(),decoder,remainingPixels,gameDateVars));
         }catch(IOException|RuntimeException e){
-            return new Entry(slot,true,true,Math.max(0,file.lastModified()),"存档损坏",null);
+            return new Entry(slot,true,true,Math.max(0,file.lastModified()),"Corrupted Save",null);
         }
     }
     static boolean valid(int slot) { return slot==AUTO || slot==QUICK || slot>=0 && slot<MAX_MANUAL_SLOTS; }
@@ -309,7 +309,7 @@ final class SaveSlots {
         return 0;
     }
     static String labelFor(int slot) {
-        if (slot==QUICK) return "快速存档";
-        return "存档 "+(slot<9?"0":"")+(slot+1);
+        if (slot==QUICK) return "Quick Save";
+        return "Save "+(slot<9?"0":"")+(slot+1);
     }
 }

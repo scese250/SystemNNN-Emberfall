@@ -30,7 +30,7 @@ final class GameSavePaths {
         if(directory==null)directory=new File(game,"sav");
         if(!game.isDirectory() || Files.isSymbolicLink(directory.toPath()) ||
             directory.exists() && !directory.isDirectory())
-            throw new IOException("游戏存档目录无效 · "+directory);
+            throw new IOException("Invalid save directory · "+directory);
         return new GameSavePaths(game,directory);
     }
 
@@ -51,7 +51,7 @@ final class GameSavePaths {
     Access open(File legacyFiles,File legacySource) throws IOException {
         Path dir=directory.toPath();
         Files.createDirectories(dir);
-        if(!Files.isDirectory(dir,LinkOption.NOFOLLOW_LINKS))throw new IOException("游戏存档目录无效 · "+directory);
+        if(!Files.isDirectory(dir,LinkOption.NOFOLLOW_LINKS))throw new IOException("Invalid save directory · "+directory);
         Path lockFile=file(".lock").toPath();
         // Reserve the path before opening a second channel. Closing it could release this JVM's first lock.
         if(!OPEN.add(lockFile))throw inUse();
@@ -71,7 +71,7 @@ final class GameSavePaths {
         }
     }
 
-    private static IOException inUse(){return new IOException("这款游戏的存档正在使用，请退出另一个播放器后重试");}
+    private static IOException inUse(){return new IOException("The save files for this game are currently in use; please exit the other player and retry");}
 
     static final class Access implements Closeable {
         private final Path path;

@@ -66,26 +66,26 @@ final class MenuModeButton {
                 atX=config.number(tag+"PrintX",atX);atY=config.number(tag+"PrintY",atY);
             }
             if(exists)buttons.add(new MenuModeButton(index,scenario!=0?0:target,scenario,atX,atY,
-                config.text(tag+"Name",scenario!=0?"剧情 · "+Math.abs(scenario):label(target)),enabled,resolved));
+                config.text(tag+"Name",scenario!=0?"Scenario · "+Math.abs(scenario):label(target)),enabled,resolved));
         }
         return buttons;
     }
 
     private static String label(int mode){
         switch(mode){
-        case 24:return "图鉴";
-        case 29:return "姓名输入";
-        case 33:return "结果";
-        case 34:return "流程图";
-        case 36:case 39:return "提示";
-        case 38:return "状态";
-        case 42:return "成就";
-        case 43:return "术语";
-        case 44:return "语音鉴赏";
-        case 47:return "道具";
-        case 48:return "商店";
-        case 49:return "队伍";
-        default:return "扩展 · "+mode;
+        case 24:return "Gallery";
+        case 29:return "Name Input";
+        case 33:return "Results";
+        case 34:return "Flowchart";
+        case 36:case 39:return "Hints";
+        case 38:return "Status";
+        case 42:return "Achievements";
+        case 43:return "Terms";
+        case 44:return "Voice Gallery";
+        case 47:return "Items";
+        case 48:return "Shop";
+        case 49:return "Party";
+        default:return "Extra · "+mode;
         }
     }
 }

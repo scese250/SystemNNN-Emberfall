@@ -66,6 +66,7 @@ final class DialoguePanel extends FrameLayout implements StoryPlaneView.Host {
         speaker.setOnClickListener(click); body.setOnClickListener(click);
         cutinLayer=new CutinLayer(click);addView(cutinLayer,new LayoutParams(-1,-1));
         cursor=new MessageCursor();addView(cursor,new LayoutParams(-1,-1));
+        style(style);
     }
     private WindowView window(boolean name) {
         WindowView v=new WindowView(getContext(),name);
@@ -103,16 +104,13 @@ final class DialoguePanel extends FrameLayout implements StoryPlaneView.Host {
     }
     static void textShadow(TextView view,int color){view.setShadowLayer(2,1,1,color);}
     void style(DialogueStyle value) { style=value==null?DialogueStyle.fallback():value;
-        Typeface face=Typeface.DEFAULT;
-        if(style.fontWeight>0){
-            if(Build.VERSION.SDK_INT>=28)face=Typeface.create(Typeface.DEFAULT,style.fontWeight,false);
-            else if(style.fontWeight>=600)face=Typeface.DEFAULT_BOLD;
-        }
+        Typeface face=PlayerFont.dialogue(getContext(),style.fontWeight);
         body.setTypeface(face);speaker.setTypeface(face);
         textShadow(speaker,style.nameShadeColor);
         updateSpeakerMarkup();
         style.canvas(canvasWidth,canvasHeight);select();
     }
+    void refreshFont(){style(style);}
     void canvas(int width,int height){
         int w=Math.max(1,width),h=Math.max(1,height);
         if(w==canvasWidth&&h==canvasHeight)return;

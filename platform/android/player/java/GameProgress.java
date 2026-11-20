@@ -57,11 +57,11 @@ final class GameProgress {
         InvalidExtension(String message,Throwable cause){super(message,cause);}
     }
     static final class InvalidBase extends IOException {
-        InvalidBase(String message){super("全局进度主文件损坏，已保留原文件 · "+message);}
-        InvalidBase(String message,Throwable cause){super("全局进度主文件损坏，已保留原文件 · "+message,cause);}
+        InvalidBase(String message){super("Global progress main file is corrupt, original preserved · "+message);}
+        InvalidBase(String message,Throwable cause){super("Global progress main file is corrupt, original preserved · "+message,cause);}
     }
     private static final class AccessFailure extends IOException {
-        AccessFailure(String part,Exception cause){super("无法读取"+part+"进度，请恢复存储访问后重试",cause);}
+        AccessFailure(String part,Exception cause){super("Unable to read "+part+" progress; please restore storage access and retry",cause);}
     }
 
     static final class State {
@@ -100,13 +100,13 @@ final class GameProgress {
         try{
             committed=selectBase(file,sibling(file,".bak"),move);
         }catch(InvalidBase e){throw e;}
-        catch(IOException|SecurityException e){throw new AccessFailure("基础",e);}
+        catch(IOException|SecurityException e){throw new AccessFailure("base",e);}
         if(committed==null)return null;
         try{
             State state=readExtension(extension,committed,repairExtension);
             if(state==committed.state)state=readExtension(sibling(extension,".bak"),committed,repairExtension);
             return new Committed(state,committed.fingerprint,committed.source);
-        }catch(IOException|SecurityException e){throw new AccessFailure("扩展",e);}
+        }catch(IOException|SecurityException e){throw new AccessFailure("extended",e);}
     }
 
     /** Snapshot validation shares the same preference without altering the staging directory. */

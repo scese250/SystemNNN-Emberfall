@@ -350,7 +350,7 @@ class GameUiPanel extends FrameLayout {
     TextView text(String label,int fontPx,int color){
         TextView v=new TextView(getContext());v.setText(label);v.setTextColor(color);
         v.setTextSize(TypedValue.COMPLEX_UNIT_PX,fontPx);v.setGravity(Gravity.CENTER_VERTICAL);
-        v.setIncludeFontPadding(false);return v;
+        v.setIncludeFontPadding(false);PlayerFont.apply(v,getContext());return v;
     }
     void picture(String name,int x,int y,int w,int h){
         ImageView view=new ImageView(getContext());view.setImageBitmap(sprite(name));view.setScaleType(ImageView.ScaleType.FIT_XY);put(view,x,y,w,h);
@@ -360,8 +360,8 @@ class GameUiPanel extends FrameLayout {
     }
     void pageArrows(GameUiAssets.Config cfg,int page,int pageCount,int x,int upY,int downY,IntConsumer selectPage){
         if(pageCount<=1)return;
-        if(page>0)button(cfg,"Up","Up","上一页",()->selectPage.accept(page-1),x,upY,48,48);
-        if(page<pageCount-1)button(cfg,"Down","Down","下一页",()->selectPage.accept(page+1),x,downY,48,48);
+        if(page>0)button(cfg,"Up","Up","Previous Page",()->selectPage.accept(page-1),x,upY,48,48);
+        if(page<pageCount-1)button(cfg,"Down","Down","Next Page",()->selectPage.accept(page+1),x,downY,48,48);
     }
     GameButton buttonAt(GameUiAssets.Config cfg,String tag,String fallbackTag,String label,Runnable action,int baseX,int baseY,int dx,int dy,int dw,int dh){
         int w=cfg.number(tag+"SizeX",cfg.number(fallbackTag+"SizeX",dw));
@@ -398,6 +398,6 @@ class GameUiPanel extends FrameLayout {
         b.setOnClickListener(v->{click.run();action.run();});put(b,x,y,w,h);
     }
     View back(GameUiAssets.Config cfg,Runnable close){
-        return button(cfg,"Back","Back","返回",close,1035,655,220,54);
+        return button(cfg,"Back","Back","Back",close,1035,655,220,54);
     }
 }

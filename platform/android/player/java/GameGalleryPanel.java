@@ -81,13 +81,13 @@ final class GameGalleryPanel extends GameUiPanel {
     }
     private void menu() {
         GameUiAssets.Config cfg=page.config;
-        menuButton(1,"CG 鉴赏",page.cgAvailable,() -> actions.open(page.cgGroups?GalleryCatalog.Screen.CG_GROUP:GalleryCatalog.Screen.CG,0,0,-1));
-        menuButton(2,"场景回想",page.sceneAvailable,() -> actions.open(page.sceneGroups?GalleryCatalog.Screen.SCENE_GROUP:GalleryCatalog.Screen.SCENE,0,0,-1));
-        menuButton(3,"音乐鉴赏",page.musicAvailable,() -> actions.open(GalleryCatalog.Screen.MUSIC,0,0,-1));
-        if (cfg.has("menu1Button4FileName")) menuButton(4,"返回标题",true,actions::back);
+        menuButton(1,"CG Gallery",page.cgAvailable,() -> actions.open(page.cgGroups?GalleryCatalog.Screen.CG_GROUP:GalleryCatalog.Screen.CG,0,0,-1));
+        menuButton(2,"Scene Replay",page.sceneAvailable,() -> actions.open(page.sceneGroups?GalleryCatalog.Screen.SCENE_GROUP:GalleryCatalog.Screen.SCENE,0,0,-1));
+        menuButton(3,"Music Gallery",page.musicAvailable,() -> actions.open(GalleryCatalog.Screen.MUSIC,0,0,-1));
+        if (cfg.has("menu1Button4FileName")) menuButton(4,"Title Menu",true,actions::back);
         else back(cfg,actions::back);
         if (page.movieAvailable && cfg.number("basicButtonNumber",4)>=5 && cfg.number("menu1Button5ExistFlag",1)!=0)
-            menuButton(5,"动画鉴赏",cfg.number("menu1Button5EnableFlag",1)!=0,()->actions.open(GalleryCatalog.Screen.MOVIE,0,0,-1));
+            menuButton(5,"Movie Gallery",cfg.number("menu1Button5EnableFlag",1)!=0,()->actions.open(GalleryCatalog.Screen.MOVIE,0,0,-1));
         for(MenuModeButton entry:page.modeButtons){
             GameButton.Spec spec=new GameButton.Spec(entry.setup);
             animatedButton(spec,sprite(entry.setup.art.image),entry.label,()->sound(spec.sound,spec.voice),
@@ -97,7 +97,7 @@ final class GameGalleryPanel extends GameUiPanel {
             if(entry.spec==null){
                 View area=new View(getContext());area.setOnClickListener(v->actions.miniGame(entry.index));
                 put(area,entry.x,entry.y,entry.w,entry.h);
-            }else animatedButton(entry.spec,entry.image,"小游戏",
+            }else animatedButton(entry.spec,entry.image,"Mini-game",
                 ()->sound(entry.spec.sound,entry.spec.voice),()->actions.miniGame(entry.index),entry.x,entry.y,entry.w,entry.h);
         }
     }
@@ -418,19 +418,19 @@ final class GameGalleryPanel extends GameUiPanel {
         if(cursor!=null&&!cursorOnTop)cursor.bringToFront();
         if(selectedName!=null)selectedName.bringToFront();
         if(cursor!=null&&cursorOnTop)cursor.bringToFront();
-        button(cfg,"rew1","rew1","上一曲",() -> actions.moveSong(-1),359,72,67,38);
-        button(cfg,page.musicState==1?"play2":"play1","play1","播放",() -> actions.play(selected),
+        button(cfg,"rew1","rew1","Previous Track",() -> actions.moveSong(-1),359,72,67,38);
+        button(cfg,page.musicState==1?"play2":"play1","play1","Play",() -> actions.play(selected),
             cfg.number("play1PrintX",425),cfg.number("play1PrintY",72),82,38).setEnabled(selected>=0);
-        button(cfg,"ff1","ff1","下一曲",() -> actions.moveSong(1),503,72,67,38);
-        button(cfg,page.musicState==2?"pause2":"pause1","pause1","暂停",actions::pause,
+        button(cfg,"ff1","ff1","Next Track",() -> actions.moveSong(1),503,72,67,38);
+        button(cfg,page.musicState==2?"pause2":"pause1","pause1","Pause",actions::pause,
             cfg.number("pause1PrintX",569),cfg.number("pause1PrintY",72),67,38);
-        button(cfg,page.musicState==0&&cfg.has("stop2FileName")?"stop2":"stop1","stop1","停止",actions::stop,
+        button(cfg,page.musicState==0&&cfg.has("stop2FileName")?"stop2":"stop1","stop1","Stop",actions::stop,
             cfg.number("stop1PrintX",635),cfg.number("stop1PrintY",72),67,38);
         int min=bounded(cfg.number("volumeMin",0),0,100),max=bounded(cfg.number("volumeMax",100),min,100);
         int volumeW=dimension(cfg,"volumeSizeX",205),volumeH=dimension(cfg,"volumeSizeY",20);
         Bitmap volumeArt=sprite(cfg.value("filenameVolume","ta_opt_bar"));
         if(volumeArt==null&&!cfg.has("filenameVolume"))volumeArt=sprite("ta_musicbar01");
-        ValueBar volume=new ValueBar(getContext(),volumeArt,"鉴赏音量",
+        ValueBar volume=new ValueBar(getContext(),volumeArt,"Gallery Volume",
             min,max,page.musicVolume,volumeW,volumeH,0,()->{},actions::volume);
         put(volume,cfg.number("volumePrintX",715),cfg.number("volumePrintY",87),volumeW,volumeH);
         if(cfg.number("spectrumPrintFlag",0)!=0){
@@ -497,7 +497,7 @@ final class GameGalleryPanel extends GameUiPanel {
             gravity=bounded(cfg.number("spectrumMaxGrav",1),0,100);
             barColor=spectrumColor(cfg,"spectrum",128,255,192);
             peakColor=spectrumColor(cfg,"spectrumMax",255,0,0);
-            setContentDescription("音乐频谱");
+            setContentDescription("Music Spectrum");
         }
         private int spectrumColor(GameUiAssets.Config cfg,String key,int r,int g,int b){
             return Color.argb(bounded(cfg.number(key+"Percent",100),0,100)*255/100,
@@ -547,7 +547,7 @@ final class GameGalleryPanel extends GameUiPanel {
             super(GameGalleryPanel.this.getContext());
             this.cell=cell; this.image=image; this.source=source; this.frame=frame; this.cursor=cursor; this.dark=dark;
             ColorMatrix matrix=new ColorMatrix(); matrix.setSaturation(0); gray=new ColorMatrixColorFilter(matrix);
-            setContentDescription(cell.label+(cell.missingMovie?" · 动画文件缺失":cell.enabled?"":" · 未解锁"));
+            setContentDescription(cell.label+(cell.missingMovie?" · Movie file missing":cell.enabled?"":" · Locked"));
             setSoundEffectsEnabled(false);
         }
         boolean startMovieSelection(){

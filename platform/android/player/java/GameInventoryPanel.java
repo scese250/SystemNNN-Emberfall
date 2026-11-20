@@ -190,7 +190,7 @@ final class GameInventoryPanel extends GameUiPanel {
             int offY=config.number(key+"1PrintY",onY);
             onX=config.number(key+"2PrintX",offX);onY=config.number(key+"2PrintY",offY);
             previousOn=on;
-            String label="物品分类 "+(group+1);
+            String label="Item Group "+(group+1);
             if(group==modal.group){
                 GameButton.Spec spec=new GameButton.Spec(on);
                 Bitmap image=sprite(spec.image);
@@ -217,11 +217,11 @@ final class GameInventoryPanel extends GameUiPanel {
         int x=pages.number("UpPrintX",0),y=pages.number("UpPrintY",0);
         upReverse=pages.number("UpUpDownReverse",0)!=0;
         downReverse=pages.number("DownUpDownReverse",0)!=0;
-        if(modal.page>0)upButton=control(up,"ta_upButton","上一页",()->send(PAGE,modal.page-1),x,y,true);
+        if(modal.page>0)upButton=control(up,"ta_upButton","Previous Page",()->send(PAGE,modal.page-1),x,y,true);
         if(modal.page+1<modal.pages)
-            downButton=control(down,"ta_downButton","下一页",()->send(PAGE,modal.page+1),
+            downButton=control(down,"ta_downButton","Next Page",()->send(PAGE,modal.page+1),
                 pages.number("DownPrintX",x+up.width),pages.number("DownPrintY",y+up.height),true);
-        backButton=control(new ButtonArt.Setup(back,"Back",null,false),"ta_backButton","返回",()->send(BACK,0),
+        backButton=control(new ButtonArt.Setup(back,"Back",null,false),"ta_backButton","Back",()->send(BACK,0),
             back.number("BackPrintX",0),back.number("BackPrintY",0),true);
     }
 
@@ -231,11 +231,11 @@ final class GameInventoryPanel extends GameUiPanel {
         GameButton.Spec spec=new GameButton.Spec(ok);
         Bitmap image=sprite(spec.image);
         boolean allowed=cell.price!=null&&(cell.row.flags&PURCHASE_ENABLED)!=0&&purchaseHit(image,spec);
-        String label=cell.price==null?"购买":"购买 "+cell.row.label+"，价格 "+cell.price;
+        String label=cell.price==null?"Purchase":"Purchase "+cell.row.label+", Price "+cell.price;
         control(ok,"",label,()->{
             if(modal.selection==id&&allowed)send(CONFIRM,id);
         },config.number("OkPrintX",0),config.number("OkPrintY",0),allowed);
-        cancelButton=control(new ButtonArt.Setup(config,"Cancel",null,false),"","取消",()->send(BACK,0),
+        cancelButton=control(new ButtonArt.Setup(config,"Cancel",null,false),"","Cancel",()->send(BACK,0),
             config.number("CancelPrintX",0),config.number("CancelPrintY",0),true);
     }
 
@@ -407,6 +407,7 @@ final class GameInventoryPanel extends GameUiPanel {
         final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
         final Rect source=new Rect();
         final RectF target=new RectF();
+        Painter(){PlayerFont.apply(paint,GameInventoryPanel.this.getContext());}
         void image(Canvas canvas,Bitmap image,int x,int y){
             if(image!=null)part(canvas,image,0,0,image.getWidth(),image.getHeight(),x,y);
         }

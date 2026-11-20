@@ -61,7 +61,7 @@ final class LogoPanel extends View {
     private boolean finished;
     LogoPanel(Context context,List<Slide> slides,int frameMs,Runnable done){
         super(context);this.slides=slides;this.frameMs=frameMs;this.done=done;
-        setContentDescription("启动 Logo");setSoundEffectsEnabled(false);setOnClickListener(v->skip());
+        setContentDescription("Startup Logo");setSoundEffectsEnabled(false);setOnClickListener(v->skip());
     }
     void skip(){if(!finished&&slides.get(index).skip)next();}
     Bitmap exitScreen(){

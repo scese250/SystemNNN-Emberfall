@@ -32,7 +32,7 @@ final class GameMiniGamePanel extends GameUiPanel {
         int x=game.config.number("exitPrintX"+(game.index+1),game.config.number("exitPrintX",width-w-12));
         int y=game.config.number("exitPrintY"+(game.index+1),game.config.number("exitPrintY",height-h-12));
         GameButton.Spec spec=new GameButton.Spec(game.config,"exit",null,w,h);
-        exit=animatedButton(spec,game.exit,"返回",()->playSound.accept(spec.sound),back,x,y,w,h);
+        exit=animatedButton(spec,game.exit,"Back",()->playSound.accept(spec.sound),back,x,y,w,h);
         if(!game.instructions.isEmpty())exit.setVisibility(GONE);
     }
 
@@ -89,6 +89,7 @@ final class GameMiniGamePanel extends GameUiPanel {
 
         Board(Context context,int width,int height){
             super(context);setClickable(true);this.width=width;this.height=height;
+            PlayerFont.apply(ink,context);
             bounds=new RectF(0,0,width,height);
             boolean tiles=game.type>=MiniGameBoard.NIKAKU;
             String prefix=tiles?"mahjong":"trump";

@@ -9,7 +9,7 @@ final class GameStoryControlsModel {
         "quickBacklogButton","freeSaveButton","freeLoadButton","freeAutoButton","freeSkipButton","freeWindowOffButton","skipFilmButton"};
     static final Action[] ACTIONS={Action.MENU,Action.QUICK_SAVE,Action.QUICK_LOAD,Action.CONFIG,Action.BACKLOG,
         Action.SAVE,Action.LOAD,Action.AUTO,Action.SKIP,Action.HIDE,Action.FILM_SKIP};
-    static final String[] LABELS={"菜单","QSave","QLoad","环境设定","回看","保存进度","读取存档","Auto","Skip","隐藏","跳过片段"};
+    static final String[] LABELS={"Menu","QSave","QLoad","Settings","Backlog","Save","Load","Auto","Skip","Hide","Skip Scene"};
     final List<Button> buttons=new ArrayList<>();
     final boolean original;
     final boolean drawDuringTransitions;
