@@ -100,7 +100,7 @@ final class DialogueLayout {
     }
     static Text[] layouts(Map<String,String> values,GameUiAssets.SharedConfig shared){
         int count=clamp(number(values,"fontSizeTypeNumber",0),0,MAX_LAYOUTS-1)+1;
-        int font=Math.min(72,shared!=null?shared.messageFontSize:number(values,"fontSize",24));
+        int font=clamp(shared!=null?shared.messageFontSize:number(values,"fontSize",24),1,72);
         int x=shared!=null?shared.printX:number(values,"printX",100);
         int y=shared!=null?shared.printY:number(values,"printY",100);
         int nx=shared!=null?shared.nextX:number(values,"nextX",0);
@@ -108,10 +108,15 @@ final class DialogueLayout {
         int space=number(values,"space",1);
         Text[] result=new Text[count];result[0]=new Text(font,x,y,nx,ny,space);
         for(int i=1;i<count;i++)result[i]=new Text(
-            Math.min(72,number(values,"fontSizeByFontSizeType"+i,font)),number(values,"printXByFontSizeType"+i,x),
+            clamp(number(values,"fontSizeByFontSizeType"+i,font),1,72),number(values,"printXByFontSizeType"+i,x),
             number(values,"printYByFontSizeType"+i,y),number(values,"nextXByFontSizeType"+i,nx),
             number(values,"nextYByFontSizeType"+i,ny),number(values,"spaceByFontSizeType"+i,space));
         return result;
+    }
+    static float letterSpacing(int space,int font){
+        // Windows SystemNNN subtracts negative space from fixed-width cells; on Android proportional fonts it overlaps glyphs.
+        if(space<=0||font<=0)return 0f;
+        return Math.min(1f,(float)space/font);
     }
     static Text layout(Text[] layouts,int font){return layouts[clamp(font,0,layouts.length-1)];}
     static Name[] nameLayouts(Map<String,String> values,Text[] normal,boolean singleByte){

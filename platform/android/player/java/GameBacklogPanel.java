@@ -143,7 +143,7 @@ final class GameBacklogPanel extends GameUiPanel {
                 DialogueTextView annotated=DialogueTextView.panel(getContext(),row.text,style.markupStyle,font,row.color);
                 inset=annotated.markupTopInset(font);text=annotated;
             }
-            text.setMaxLines(1);text.setLetterSpacing(space/(float)font);
+            text.setMaxLines(1);text.setLetterSpacing(DialogueLayout.letterSpacing(space,font));
             if(!row.text.colors.isEmpty()){
                 SpannableString colored=new SpannableString(row.text.text);
                 for(DialogueMarkup.ColorRun run:row.text.colors)
@@ -174,7 +174,7 @@ final class GameBacklogPanel extends GameUiPanel {
         DialogueMarkup parsed=style.markup(body);
         TextView view=parsed.annotations.isEmpty()?text(parsed.text,font,color):
             DialogueTextView.panel(getContext(),parsed,style.markupStyle,font,color);
-        view.setSingleLine(true);view.setLetterSpacing(space/(float)font);
+        view.setSingleLine(true);view.setLetterSpacing(DialogueLayout.letterSpacing(space,font));
         return view;
     }
     private void textActionButton(String raw,int fallbackColor,String description,int bx,int by,int w,int h,Runnable cue,Runnable action){

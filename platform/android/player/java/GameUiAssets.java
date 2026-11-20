@@ -122,7 +122,7 @@ final class GameUiAssets {
             int layerExp=gm.number("layerExpand",0)!=0?32:16;
             int okikae=gm.number("okikaeNothing",0)==0?1:0;
             int winMsg=Math.max(1,pm.number("windowMessageNumber",4));
-            int fontSize=Math.min(72,pm.number("fontSize",24));
+            int fontSize=DialogueLayout.clamp(pm.number("fontSize",24),1,72);
             int px=pm.number("printX",100),py=pm.number("printY",100);
             int nx=pm.number("nextX",0),ny=pm.number("nextY",fontSize+6);
             int lpx=pm.number("LPrintX",100),lpy=pm.number("LPrintY",100);

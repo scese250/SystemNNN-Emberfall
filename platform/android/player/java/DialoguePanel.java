@@ -235,7 +235,7 @@ final class DialoguePanel extends FrameLayout implements StoryPlaneView.Host {
             LayoutParams position=(LayoutParams)body.getLayoutParams();
             position.topMargin-=markupTop;position.height+=markupTop;
         }
-        body.setLetterSpacing((float)layout.space/Math.max(1,layout.font));
+        body.setLetterSpacing(DialogueLayout.letterSpacing(layout.space,layout.font));
         android.graphics.Paint.FontMetrics metrics=body.getPaint().getFontMetrics();
         // Keep the game's row positions when shrinking text. Larger text needs room for the extra glyph height.
         float lineStep=Math.max(1,layout.nextY*sy+Math.max(0,textSize-originalSize));
@@ -247,7 +247,7 @@ final class DialoguePanel extends FrameLayout implements StoryPlaneView.Host {
             LayoutParams position=(LayoutParams)speaker.getLayoutParams();
             position.topMargin-=nameMarkupTop;position.height+=nameMarkupTop;
         }
-        speaker.setLetterSpacing((float)name.space/name.font);
+        speaker.setLetterSpacing(DialogueLayout.letterSpacing(name.space,name.font));
         layoutMessage(sx,origin,right);
         super.onMeasure(widthSpec,heightSpec);
     }
@@ -432,7 +432,7 @@ final class DialoguePanel extends FrameLayout implements StoryPlaneView.Host {
                 DialogueTextView line=lines.get(i);
                 float size=Math.max(1,font*sx*factor);
                 line.setTextSize(TypedValue.COMPLEX_UNIT_PX,size);line.markupFont(font);
-                line.setLetterSpacing((float)layout.space/font);
+                line.setLetterSpacing(DialogueLayout.letterSpacing(layout.space,font));
                 int inset=line.markupTopInset(size);
                 place(line,x,y,canvasWidth-x,2*font,sx,sy);
                 LayoutParams position=(LayoutParams)line.getLayoutParams();
@@ -549,7 +549,7 @@ final class DialoguePanel extends FrameLayout implements StoryPlaneView.Host {
             android.text.Layout lines=body.getLayout();
             if(mode>=2&&decorations.cutin){
                 int lastLength=message.codePointCount(message.lastIndexOf('\n')+1,message.length());
-                if(!fixX)px+=(layout.x+(long)lastLength*(layout.font+layout.space))*sx;
+                if(!fixX)px+=(layout.x+(long)lastLength*(layout.font+Math.max(0,layout.space)))*sx;
                 if(!fixY)py+=(layout.y+(long)lastLogicalRow*layout.nextY)*sy;
             }else if(mode>=2&&lines!=null&&lines.getLineCount()>0){
                 int line=lines.getLineCount()-1;

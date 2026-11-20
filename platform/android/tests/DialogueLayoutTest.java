@@ -168,6 +168,22 @@ public final class DialogueLayoutTest {
         check(!DialogueLayout.portraitMoving(1,true,4,true,12,0),"secondary composite portrait layer fixed at frame 0 never loops");
         check(!DialogueLayout.portraitMoving(0,false,4,true,12,0)&&!DialogueLayout.portraitMoving(0,true,1,true,12,0),
             "missing or single-frame portrait never animates");
+        check(DialogueLayout.letterSpacing(-12,24)==0f&&DialogueLayout.letterSpacing(-1,24)==0f&&
+            DialogueLayout.letterSpacing(0,24)==0f,"negative or zero space does not squish proportional Android glyphs");
+        check(DialogueLayout.letterSpacing(2,0)==0f&&DialogueLayout.letterSpacing(2,-10)==0f,
+            "non-positive font size produces zero letter spacing");
+        check(Math.abs(DialogueLayout.letterSpacing(1,24)-(1f/24f))<1e-6f&&
+            Math.abs(DialogueLayout.letterSpacing(6,24)-0.25f)<1e-6f,"positive space preserves configured extra tracking");
+        check(DialogueLayout.letterSpacing(100,24)==1f,"extreme positive space clamps to one em");
+        Map<String,String> neg=new HashMap<>();put(neg,"fontSize",0);put(neg,"space",-10);
+        DialogueLayout.Text[] negLayouts=DialogueLayout.layouts(neg);
+        check(negLayouts[0].font==1&&negLayouts[0].space==-10&&
+            DialogueLayout.letterSpacing(negLayouts[0].space,negLayouts[0].font)==0f,
+            "layout clamps font minimum while negative space yields zero letter spacing");
+        DialogueLayout.Text[] negLong=DialogueLayout.longLayouts(neg,negLayouts);
+        check(negLong[0].font==1&&negLong[0].space==-10&&
+            DialogueLayout.letterSpacing(negLong[0].space,negLong[0].font)==0f,
+            "LPRINT layout preserves negative space metadata while rendering zero letter spacing");
         if(args.length>0){
             Path root=Paths.get(args[0]);Map<String,String> real=read(root.resolve("init/printmessage.xtx"));
             DialogueLayout.Text[] actual=DialogueLayout.layouts(real);
