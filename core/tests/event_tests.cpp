@@ -175,8 +175,6 @@ int main(){
     struct TextBad{const char* name;std::function<void(std::vector<Word>&)> mutate;};
     const std::vector<TextBad> text_bad{
         {"missing last NUL",[](auto& w){w[w[w[7]+1U]]=0xffffffffU;}},
-        {"first pointer before payload",[](auto& w){w[w[7]]=w[7];}},
-        {"first pointer outside table",[](auto& w){w[w[7]]=w[18]-4U;}},
         {"first pointer UINT32_MAX",[](auto& w){w[w[7]]=UINT32_MAX;}},
         {"second pointer overlaps first",[](auto& w){w[w[7]+1U]=w[w[7]];}},
         {"second pointer skips aligned word",[](auto& w){++w[w[7]+1U];}},
@@ -193,6 +191,15 @@ int main(){
             require(first==(name=="second pointer overlaps first" ? "A" : std::string(4,static_cast<char>(0xff))+"B") &&
                     second==(name=="second pointer overlaps first" ? "A" : "B"),"pointer text value");
         } else reject(words);
+    });
+    suite.test("relocated text pointer outside table is accepted",[]{
+        Model m;m.padding=0xee;m.strings={"A","B"};m.code.end();auto words=program_words(m);
+        const Word relocated=static_cast<Word>(words.size());
+        words.push_back(0x00434241U);
+        words[words[7]]=relocated;
+        Callback cb;nnn::CExecScript vm(cb);cb.vm=&vm;status_is(vm.LoadBytes(encrypted(words)),ErrorCode::Ok,"relocated text load");
+        std::string first,second;require(vm.GetString(0,first)&&vm.GetString(1,second),"relocated text access");
+        require(first=="ABC"&&second=="B","relocated text value");
     });
     suite.test("extra whole padding word is accepted",[]{
         Model m;m.padding=0xee;m.code.end();auto words=program_words(m);const Word end=words[18]-4U;

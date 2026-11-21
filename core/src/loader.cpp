@@ -268,9 +268,23 @@ Status read_text_table(const std::vector<Word>& words, Range range, Word count, 
     output.offsets.reserve(count);
     for (Word i = 0; i < count; ++i) {
         const WordIndex at = words[range.first + i];
-        if (at < payload || at >= range.end) return failure(ErrorCode::InvalidFormat, "Text pointer outside table", range.first + i);
-        const auto offset = static_cast<std::size_t>(at - payload) * 4;
-        if (offset >= terminated) return failure(ErrorCode::InvalidFormat, "Unterminated text in table", at);
+        if (at >= words.size()) return failure(ErrorCode::InvalidFormat, "Text pointer outside script", range.first + i);
+        if (at >= payload && at < range.end) {
+            const auto offset = static_cast<std::size_t>(at - payload) * 4;
+            if (offset >= terminated) return failure(ErrorCode::InvalidFormat, "Unterminated text in table", at);
+            output.offsets.push_back(offset);
+            continue;
+        }
+        const std::size_t offset = output.bytes.size();
+        bool found_nul = false;
+        for (WordIndex j = at; j < words.size() && !found_nul; ++j) {
+            for (unsigned shift = 0; shift < 32; shift += 8) {
+                const char ch = static_cast<char>((words[j] >> shift) & 255U);
+                output.bytes.push_back(ch);
+                if (ch == '\0') found_nul = true;
+            }
+        }
+        if (!found_nul) return failure(ErrorCode::InvalidFormat, "Unterminated text in table", at);
         output.offsets.push_back(offset);
     }
     return {};
