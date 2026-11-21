@@ -22,6 +22,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.RippleDrawable;
+import android.os.Build;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.TypedValue;
@@ -29,6 +30,8 @@ import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.FrameLayout;
@@ -682,12 +685,21 @@ final class EmberfallUi {
             int targetW = Math.min(dp(activity, maxWidthDp), availW);
             window.setLayout(targetW, ViewGroup.LayoutParams.WRAP_CONTENT);
 
-            if (activityDecor != null) {
-                int vis = activityDecor.getSystemUiVisibility();
-                if ((vis & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0 || (vis & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0) {
-                    window.getDecorView().setSystemUiVisibility(vis);
+            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            View dialogDecor = window.getDecorView();
+            if (Build.VERSION.SDK_INT >= 30) {
+                window.setDecorFitsSystemWindows(false);
+                WindowInsetsController controller = dialogDecor.getWindowInsetsController();
+                if (controller != null) {
+                    controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                    controller.hide(WindowInsets.Type.systemBars());
                 }
             }
+            dialogDecor.setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            );
         });
 
         return dialog;

@@ -150,21 +150,24 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
             getWindow().setAttributes(window);
         }
         setVolumeControlStream(android.media.AudioManager.STREAM_MUSIC);
-        immersive();
         root=new FrameLayout(this); root.setBackgroundColor(Color.BLACK); setContentView(root);
+        immersive();
+        getWindow().getDecorView().setOnSystemUiVisibilityChangeListener(vis->{
+            if((vis&(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION))!=
+                (View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION)){
+                immersive();
+            }
+        });
+        root.post(this::immersive);
         root.setOnApplyWindowInsetsListener((view,insets)->{
-            int left,top,right,bottom;
+            int left=0,top=0,right=0,bottom=0;
             if(Build.VERSION.SDK_INT>=30){
-                android.graphics.Insets safe=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
+                android.graphics.Insets safe=insets.getInsets(WindowInsets.Type.displayCutout());
                 left=safe.left;top=safe.top;right=safe.right;bottom=safe.bottom;
-            }else{
-                left=insets.getSystemWindowInsetLeft();top=insets.getSystemWindowInsetTop();
-                right=insets.getSystemWindowInsetRight();bottom=insets.getSystemWindowInsetBottom();
-                if(Build.VERSION.SDK_INT>=28&&insets.getDisplayCutout()!=null){
-                    DisplayCutout cutout=insets.getDisplayCutout();
-                    left=Math.max(left,cutout.getSafeInsetLeft());top=Math.max(top,cutout.getSafeInsetTop());
-                    right=Math.max(right,cutout.getSafeInsetRight());bottom=Math.max(bottom,cutout.getSafeInsetBottom());
-                }
+            }else if(Build.VERSION.SDK_INT>=28&&insets.getDisplayCutout()!=null){
+                DisplayCutout cutout=insets.getDisplayCutout();
+                left=cutout.getSafeInsetLeft();top=cutout.getSafeInsetTop();
+                right=cutout.getSafeInsetRight();bottom=cutout.getSafeInsetBottom();
             }
             if(view.getPaddingLeft()!=left||view.getPaddingTop()!=top||view.getPaddingRight()!=right||view.getPaddingBottom()!=bottom){
                 view.setPadding(left,top,right,bottom);layoutStage();
@@ -2534,23 +2537,24 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
         root.addView(outer,new FrameLayout.LayoutParams(-1,-1));
     }
     private void immersive() {
-        boolean full=settings==null||settings.fullscreen;
         View decor=getWindow().getDecorView();
-        if(full)getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        // Handle insets ourselves on every supported version. Android15+
-        // enforces edge-to-edge for target35, including the non-fullscreen mode.
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         if(Build.VERSION.SDK_INT>=30){
             getWindow().setDecorFitsSystemWindows(false);
             WindowInsetsController controller=decor.getWindowInsetsController();
             if(controller!=null){
                 controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-                if(full)controller.hide(WindowInsets.Type.systemBars());else controller.show(WindowInsets.Type.systemBars());
+                controller.hide(WindowInsets.Type.systemBars());
             }
         }
-        decor.setSystemUiVisibility(full?View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION:View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+        decor.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
         if(root!=null)root.requestApplyInsets();
+    }
+    @Override public void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        immersive();
     }
     @Override public void onWindowFocusChanged(boolean focus) {
         super.onWindowFocusChanged(focus);
