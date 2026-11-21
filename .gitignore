@@ -59,6 +59,7 @@ Thumbs.db
 *.jks
 *.keystore
 *.p12
+!/platform/android/signing/emberfall-debug.p12
 *.pfx
 *.pem
 *.key

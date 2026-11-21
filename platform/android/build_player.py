@@ -2,6 +2,8 @@
 import os
 import sys
 import argparse
+import base64
+import binascii
 import shutil
 import subprocess
 import tempfile
@@ -16,6 +18,9 @@ ROOT = ANDROID.parents[1]
 PLAYER = ANDROID / "player"
 OUTPUT = ROOT / "build/tyranor"
 PACKAGE = "com.tyranor.runtime.systemnnn"
+DEFAULT_DEBUG_KEYSTORE = ANDROID / "signing/emberfall-debug.p12"
+DEFAULT_DEBUG_KEYSTORE_ALIAS = "emberfall-debug"
+DEFAULT_DEBUG_KEYSTORE_PASS = "android"
 MOVIE_CODEC_VERSION = "8.1.3"
 MOVIE_CODEC_LIBS = ("avformat", "avcodec", "swscale", "swresample", "avutil")
 FFMPEG_SOURCE = f"ffmpeg-{MOVIE_CODEC_VERSION}-source.tar.gz"
@@ -69,15 +74,114 @@ def find_ndk(wsl, sdk):
         distro_home = subprocess.check_output(wsl + ["printenv", "HOME"], encoding="utf-8").strip()
         return distro_home + "/.cache/systemnnn-m/toolchains/android-ndk-r28"
 
+def resolve_signing_spec(args):
+    env_keystore_path = (os.getenv("ANDROID_KEYSTORE_PATH") or "").strip()
+    env_keystore_b64 = (os.getenv("ANDROID_KEYSTORE_BASE64") or "").strip()
+    ks_pass = args.keystore_pass if args.keystore_pass is not None else os.getenv("ANDROID_KEYSTORE_PASSWORD", "")
+    key_alias = args.key_alias if args.key_alias is not None else (os.getenv("ANDROID_KEY_ALIAS") or "").strip()
+    key_pass_raw = args.key_pass if args.key_pass is not None else os.getenv("ANDROID_KEY_PASSWORD", "")
+
+    if args.keystore is not None or env_keystore_path or env_keystore_b64:
+        ks_bytes = None
+        ks_path = None
+        if args.keystore is not None:
+            ks_path = args.keystore.expanduser().resolve()
+            if not ks_path.is_file():
+                raise SystemExit(f"Signing keystore not found: {ks_path}")
+            desc = f"custom keystore ({ks_path})"
+        elif env_keystore_path:
+            ks_path = Path(env_keystore_path).expanduser().resolve()
+            if not ks_path.is_file():
+                raise SystemExit(f"ANDROID_KEYSTORE_PATH not found: {ks_path}")
+            desc = f"ANDROID_KEYSTORE_PATH ({ks_path})"
+        else:
+            try:
+                ks_bytes = base64.b64decode("".join(env_keystore_b64.split()), validate=True)
+            except (binascii.Error, ValueError) as exc:
+                raise SystemExit("Invalid ANDROID_KEYSTORE_BASE64: failed to decode base64") from exc
+            if not ks_bytes:
+                raise SystemExit("Invalid ANDROID_KEYSTORE_BASE64: decoded keystore is empty")
+            desc = "ANDROID_KEYSTORE_BASE64"
+
+        if not ks_pass:
+            raise SystemExit(
+                "Keystore password is required when using a custom keystore "
+                "(set --keystore-pass or ANDROID_KEYSTORE_PASSWORD)"
+            )
+        if not key_alias:
+            raise SystemExit(
+                "Key alias is required when using a custom keystore "
+                "(set --key-alias or ANDROID_KEY_ALIAS)"
+            )
+        return {
+            "ks_path": ks_path,
+            "ks_bytes": ks_bytes,
+            "ks_pass": ks_pass,
+            "key_alias": key_alias,
+            "key_pass": key_pass_raw if key_pass_raw else ks_pass,
+            "desc": desc,
+        }
+
+    if DEFAULT_DEBUG_KEYSTORE.is_file():
+        return {
+            "ks_path": DEFAULT_DEBUG_KEYSTORE,
+            "ks_bytes": None,
+            "ks_pass": DEFAULT_DEBUG_KEYSTORE_PASS,
+            "key_alias": DEFAULT_DEBUG_KEYSTORE_ALIAS,
+            "key_pass": DEFAULT_DEBUG_KEYSTORE_PASS,
+            "desc": f"committed debug keystore ({DEFAULT_DEBUG_KEYSTORE.relative_to(ROOT).as_posix()})",
+        }
+
+    return {
+        "ks_path": None,
+        "ks_bytes": None,
+        "ks_pass": DEFAULT_DEBUG_KEYSTORE_PASS,
+        "key_alias": DEFAULT_DEBUG_KEYSTORE_ALIAS,
+        "key_pass": DEFAULT_DEBUG_KEYSTORE_PASS,
+        "desc": "local generated debug keystore",
+    }
+
 def main():
     manifest = PLAYER / "AndroidManifest.xml"
-    version = ElementTree.parse(manifest).getroot().attrib["{http://schemas.android.com/apk/res/android}versionName"]
+    manifest_root = ElementTree.parse(manifest).getroot()
+    android_ns = "{http://schemas.android.com/apk/res/android}"
+    version = manifest_root.attrib[android_ns + "versionName"]
+    manifest_version_code = int(manifest_root.attrib[android_ns + "versionCode"])
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--movie-codec-linkage", choices=("shared", "static"), default="shared",
                         help="link FFmpeg as separate shared libraries or embed it in libsystemnnn.so")
     parser.add_argument("--output", type=Path, help="override the versioned APK output path")
+    parser.add_argument("--version-code", type=int, default=None,
+                        help="override android:versionCode (must be >= manifest versionCode)")
+    parser.add_argument("--keystore", type=Path, default=None,
+                        help="signing keystore path (overrides ANDROID_KEYSTORE_PATH / ANDROID_KEYSTORE_BASE64)")
+    parser.add_argument("--keystore-pass", default=None,
+                        help="signing keystore password (defaults to ANDROID_KEYSTORE_PASSWORD)")
+    parser.add_argument("--key-alias", default=None,
+                        help="signing key alias (defaults to ANDROID_KEY_ALIAS)")
+    parser.add_argument("--key-pass", default=None,
+                        help="signing key password (defaults to ANDROID_KEY_PASSWORD or keystore password)")
     args = parser.parse_args()
     linkage = args.movie_codec_linkage
+
+    version_code_env = (os.getenv("ANDROID_VERSION_CODE") or "").strip()
+    if args.version_code is not None:
+        version_code = args.version_code
+    elif version_code_env:
+        try:
+            version_code = int(version_code_env)
+        except ValueError as exc:
+            raise SystemExit(f"Invalid ANDROID_VERSION_CODE={version_code_env!r}: expected an integer") from exc
+    else:
+        version_code = manifest_version_code
+    if version_code < manifest_version_code:
+        raise SystemExit(
+            f"Refusing versionCode {version_code} < AndroidManifest.xml versionCode {manifest_version_code} "
+            f"(would cause INSTALL_FAILED_VERSION_DOWNGRADE)"
+        )
+
+    signing = resolve_signing_spec(args)
 
     ext = "" if IS_LINUX else ".exe"
 
@@ -178,8 +282,14 @@ def main():
         shutil.copytree(PLAYER / "java", stage / "java")
         shutil.copyfile(ANDROID / "app/java/com/tyranor/runtime/systemnnn/SjisTunnelDecoder.java", stage / "java/SjisTunnelDecoder.java")
         run([bt / f"aapt2{ext}", "compile", "--dir", "res", "-o", "resources.zip"], stage)
-        run([bt / f"aapt2{ext}", "link", "-I", jar, "--manifest", "AndroidManifest.xml", "--auto-add-overlay", "-R", "resources.zip",
-             "-A", "assets", "-o", "resources.apk"], stage)
+        aapt2_link = [
+            bt / f"aapt2{ext}", "link", "-I", jar, "--manifest", "AndroidManifest.xml",
+            "--auto-add-overlay", "-R", "resources.zip", "-A", "assets",
+        ]
+        if version_code != manifest_version_code:
+            aapt2_link.extend(["--version-code", str(version_code)])
+        aapt2_link.extend(["-o", "resources.apk"])
+        run(aapt2_link, stage)
         classes = stage / "classes"
         classes.mkdir()
         run([javac, "-encoding", "UTF-8", "--release", "8", "-classpath", jar,
@@ -200,16 +310,48 @@ def main():
                     lib = f"lib{component}.so"
                     apk.write(codec / "lib" / lib, "lib/arm64-v8a/" + lib, zipfile.ZIP_STORED)
         run([bt / f"zipalign{ext}", "-P", "16", "-f", "4", "player.apk", "aligned.apk"], stage)
-        key = local / "debug-signing/emberfall-debug.p12"
-        if not key.is_file():
-            key.parent.mkdir(parents=True, exist_ok=True)
-            run([keytool, "-genkeypair", "-keystore", key, "-alias", "emberfall-debug",
-                 "-storepass", "android", "-keypass", "android", "-dname", "CN=Emberfall Local Debug",
-                 "-keyalg", "RSA", "-keysize", "2048", "-validity", "3650", "-noprompt"])
+        if signing["ks_bytes"] is not None:
+            key = stage / "signing-keystore.p12"
+            key.write_bytes(signing["ks_bytes"])
+            try:
+                key.chmod(0o600)
+            except OSError:
+                pass
+        elif signing["ks_path"] is not None:
+            key = signing["ks_path"]
+        else:
+            key = local / "debug-signing/emberfall-debug.p12"
+            if not key.is_file():
+                key.parent.mkdir(parents=True, exist_ok=True)
+                run([keytool, "-genkeypair", "-keystore", key, "-storetype", "PKCS12",
+                     "-alias", signing["key_alias"], "-storepass", signing["ks_pass"],
+                     "-keypass", signing["key_pass"], "-dname", "CN=Emberfall Debug, O=SystemNNN-Emberfall",
+                     "-keyalg", "RSA", "-keysize", "2048", "-sigalg", "SHA256withRSA",
+                     "-validity", "10000", "-noprompt"])
+        ks_pass_file = stage / "ks.pass"
+        key_pass_file = stage / "key.pass"
+        ks_pass_file.write_text(signing["ks_pass"] + "\n", encoding="utf-8")
+        key_pass_file.write_text(signing["key_pass"] + "\n", encoding="utf-8")
+        for pass_file in (ks_pass_file, key_pass_file):
+            try:
+                pass_file.chmod(0o600)
+            except OSError:
+                pass
+        print(f"Signing APK (versionCode={version_code}) with {signing['desc']} (alias: {signing['key_alias']})")
         signer = [java, "-jar", bt / "lib/apksigner.jar"]
-        run(signer + ["sign", "--ks", key, "--ks-key-alias", "emberfall-debug", "--ks-pass", "pass:android",
-                      "--key-pass", "pass:android", "--v1-signing-enabled", "false", "--out", "signed.apk", "aligned.apk"], stage)
-        run(signer + ["verify", "--verbose", "signed.apk"], stage)
+        run(signer + [
+            "sign",
+            "--ks", key,
+            "--ks-key-alias", signing["key_alias"],
+            "--ks-pass", f"file:{ks_pass_file}",
+            "--key-pass", f"file:{key_pass_file}",
+            "--v1-signing-enabled", "false",
+            "--v2-signing-enabled", "true",
+            "--v3-signing-enabled", "true",
+            "--out", "signed.apk",
+            "aligned.apk",
+        ], stage)
+        run(signer + ["verify", "--verbose", "--print-certs", "signed.apk"], stage)
         run([bt / f"zipalign{ext}", "-c", "-P", "16", "4", "signed.apk"], stage)
         final = (args.output or OUTPUT / apk_filename(version, linkage)).resolve()
         final.parent.mkdir(parents=True, exist_ok=True)

@@ -20,6 +20,7 @@ import android.provider.Settings;
 import android.provider.DocumentsContract;
 import android.os.storage.StorageManager;
 import android.os.storage.StorageVolume;
+import android.text.TextUtils;
 import android.util.TypedValue;
 import android.util.Log;
 import android.view.*;
@@ -78,6 +79,13 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
     private boolean storyDrag;
     private boolean foreground,permissionPending;
     private static final int REQUEST_FONT_FILE=33;
+    private LauncherView launcherView;
+    private boolean showingLauncher;
+    private AlertDialog storageGateDialog;
+    private String activeProfileId;
+    private String pendingFontProfileId;
+    private File pendingImportSourceDir;
+    private Runnable refreshReadingSettingsFont;
     private Uri selectedGameTree;
     private boolean copyingGame,usingGameCopy;
     private volatile boolean cancelGameCopy;
@@ -119,6 +127,11 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
     };
 
     private void pickFontFile() {
+        pickFontFileForProfile(activeProfileId);
+    }
+
+    private void pickFontFileForProfile(String profileId) {
+        pendingFontProfileId=(profileId!=null&&!profileId.isEmpty())?profileId:PlayerFont.activeProfileId();
         Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
         intent.setType("*/*");
@@ -169,10 +182,15 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
                 path=saved.getString("selectedGame");
                 String tree=saved.getString("selectedGameTree");
                 if(tree!=null)selectedGameTree=Uri.parse(tree);
+                String savedProfileId=saved.getString("activeProfileId");
+                if(savedProfileId!=null&&!savedProfileId.isEmpty()){
+                    activeProfileId=savedProfileId;
+                    PlayerFont.setActiveProfile(activeProfileId);
+                }
             }
             if (path==null || path.isEmpty()) { chooseHome(null); return; }
         } else if (path==null || path.isEmpty()) {
-            chooseHome("TYN did not provide a game folder."); return;
+            message("Unable to Open Game","TYN did not provide a game folder.",null,null); return;
         }
         if (i.getIntExtra(PREFIX+"PROTOCOL_VERSION",1)!=1) {
             message("Unsupported Launch Protocol","Please check Tyranor-Next and engine module versions.",null,null); return;
@@ -181,67 +199,212 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
             File input=new File(path);
             if (!input.isAbsolute()) throw new IOException("The game directory passed by TYN must be an absolute path");
             game=input.getCanonicalFile();
+            if(activeProfileId==null){
+                activeProfileId=GameProfileStore.profileIdForPath(game.getPath());
+            }
+            PlayerFont.setActiveProfile(activeProfileId);
         } catch (IOException e) { message("Unable to Open Game",e.getMessage(),null,null); return; }
         inspectAccess();
     }
-    private void chooseHome(String reason) {
-        root.removeAllViews();
-        LinearLayout box=new LinearLayout(this);
-        box.setGravity(Gravity.CENTER);
-        box.setPadding(dp(32),dp(16),dp(32),dp(16));
-        box.setOrientation(LinearLayout.VERTICAL);
-        TextView heading=label(getApplicationInfo().loadLabel(getPackageManager()).toString(),22);
-        heading.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
-        box.addView(heading);
-        String hint="Select the extracted SystemNNN game folder containing spt/sys.spt.";
-        String fontInfo="Font: "+PlayerFont.currentName(this);
-        String body=(reason==null?hint:reason+"\n\n"+hint)+"\n\n"+fontInfo;
-        TextView description=label(body,16);
-        description.setPadding(0,dp(12),0,dp(12));
-        box.addView(description);
-        Button selectFolder=new Button(this);
-        selectFolder.setText("Select Game Folder");
-        selectFolder.setSoundEffectsEnabled(false);
-        selectFolder.setOnClickListener(clicked(v -> startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE),32)));
-        box.addView(selectFolder);
-        Button loadFont=new Button(this);
-        loadFont.setText("Load Font (.ttf / .otf)");
-        loadFont.setSoundEffectsEnabled(false);
-        loadFont.setOnClickListener(clicked(v -> pickFontFile()));
-        box.addView(loadFont);
-        if(PlayerFont.hasCustom(this)){
-            Button resetFont=new Button(this);
-            resetFont.setText("Reset to Default Font");
-            resetFont.setSoundEffectsEnabled(false);
-            resetFont.setOnClickListener(clicked(v -> {
-                PlayerFont.reset(this);
-                Toast.makeText(this,"Font reset to default",Toast.LENGTH_SHORT).show();
-                chooseHome(null);
-            }));
-            box.addView(resetFont);
+    private boolean hasRequiredStandaloneStoragePermission() {
+        if (Build.VERSION.SDK_INT >= 30) {
+            return Environment.isExternalStorageManager();
         }
-        Button exit=new Button(this);
-        exit.setText("Exit");
-        exit.setSoundEffectsEnabled(false);
-        exit.setOnClickListener(clicked(v -> finish()));
-        box.addView(exit);
-        root.addView(box,new FrameLayout.LayoutParams(-1,-1));
+        if (Build.VERSION.SDK_INT == 29 && !Environment.isExternalStorageLegacy()) {
+            return true;
+        }
+        return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+            && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    }
+    private void enforceStandaloneStorageGate() {
+        if (fromTyn || runner != null || isFinishing() || isDestroyed()) {
+            return;
+        }
+        if (hasRequiredStandaloneStoragePermission()) {
+            if (storageGateDialog != null && storageGateDialog.isShowing()) {
+                storageGateDialog.dismiss();
+            }
+            storageGateDialog = null;
+            if (launcherView != null) {
+                launcherView.refreshIconsAfterPermissionGranted();
+            }
+            return;
+        }
+        if (storageGateDialog != null && storageGateDialog.isShowing()) {
+            return;
+        }
+        showStoragePermissionGate();
+    }
+    private void showStoragePermissionGate() {
+        if (isFinishing() || isDestroyed()) {
+            return;
+        }
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setLayoutParams(new ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        LinearLayout headerRow = new LinearLayout(this);
+        headerRow.setOrientation(LinearLayout.HORIZONTAL);
+        headerRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(EmberfallUi.folderLockIcon(this, 40, EmberfallUi.ACCENT));
+        LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(
+            EmberfallUi.dp(this, 40),
+            EmberfallUi.dp(this, 40)
+        );
+        iconLp.setMarginEnd(EmberfallUi.dp(this, 12));
+        headerRow.addView(icon, iconLp);
+
+        TextView title = EmberfallUi.text(this, "Grant Storage Access", 17f, EmberfallUi.TEXT_PRIMARY, true);
+        headerRow.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        content.addView(headerRow);
+
+        TextView body = EmberfallUi.text(
+            this,
+            "Storage access is required to load game files and save your progress.",
+            13.5f,
+            EmberfallUi.TEXT_SECONDARY,
+            false
+        );
+        body.setLineSpacing(0f, 1.25f);
+        LinearLayout.LayoutParams bodyLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        bodyLp.topMargin = EmberfallUi.dp(this, 12);
+        content.addView(body, bodyLp);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
+        LinearLayout.LayoutParams actionsLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        actionsLp.topMargin = EmberfallUi.dp(this, 18);
+
+        TextView exitBtn = EmberfallUi.secondaryButton(this, "Exit", null, v -> finish());
+        LinearLayout.LayoutParams exitLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        exitLp.setMarginEnd(EmberfallUi.dp(this, 10));
+        actions.addView(exitBtn, exitLp);
+
+        TextView grantBtn = EmberfallUi.primaryButton(this, "Grant Access", null, v -> openStoragePermissionSettings());
+        actions.addView(grantBtn);
+
+        content.addView(actions, actionsLp);
+
+        storageGateDialog = EmberfallUi.createModalDialog(this, content, false, 440);
+        storageGateDialog.show();
+    }
+    private void openStoragePermissionSettings() {
+        permissionPending = true;
+        if (Build.VERSION.SDK_INT >= 30) {
+            Intent settings = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                Uri.parse("package:" + getPackageName()));
+            try {
+                startActivity(settings);
+            } catch (android.content.ActivityNotFoundException e) {
+                startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+            }
+        } else {
+            requestPermissions(new String[]{
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+            }, 21);
+        }
+    }
+    private void chooseHome(String reason) {
+        if (fromTyn) {
+            message("Unable to Open Game", reason != null ? reason : "TYN did not provide a valid game folder.", null, null);
+            return;
+        }
+        if (launcherView != null) {
+            launcherView.destroy();
+            launcherView = null;
+        }
+        root.removeAllViews();
+        showingLauncher = true;
+        game = null;
+        selectedGameTree = null;
+        activeProfileId = null;
+        pendingImportSourceDir = null;
+        PlayerFont.setActiveProfile(null);
+
+        launcherView = new LauncherView(this, new LauncherView.Listener() {
+            @Override public void onAddGame() {
+                startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), 32);
+            }
+            @Override public void onLaunchGame(GameProfileStore.Profile profile) {
+                launchGameProfile(profile);
+            }
+            @Override public void onPickFontForProfile(String profileId) {
+                pickFontFileForProfile(profileId);
+            }
+            @Override public void onExit() {
+                finish();
+            }
+            @Override public boolean canExtractIcons() {
+                return hasRequiredStandaloneStoragePermission();
+            }
+        });
+        root.addView(launcherView, new FrameLayout.LayoutParams(-1, -1));
+        if (reason != null && !reason.trim().isEmpty()) {
+            Toast.makeText(this, reason, Toast.LENGTH_LONG).show();
+        }
+        enforceStandaloneStorageGate();
+    }
+    private void launchGameProfile(GameProfileStore.Profile profile) {
+        if (profile == null || profile.folderPath == null || profile.folderPath.isEmpty()) {
+            return;
+        }
+        if (!hasRequiredStandaloneStoragePermission()) {
+            enforceStandaloneStorageGate();
+            return;
+        }
+        try {
+            File target = new File(profile.folderPath).getCanonicalFile();
+            activeProfileId = profile.id;
+            PlayerFont.setActiveProfile(profile.id);
+            GameProfileStore.touchLastPlayed(this, profile.id);
+            game = target;
+            selectedGameTree = (profile.treeUri != null && !profile.treeUri.isEmpty()) ? Uri.parse(profile.treeUri) : null;
+            pendingImportSourceDir = target;
+            inspectAccess();
+        } catch (IOException e) {
+            Toast.makeText(this, e.getMessage() != null ? e.getMessage() : "Unable to open game folder", Toast.LENGTH_LONG).show();
+        }
     }
     @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
         if(request==REQUEST_FONT_FILE){
+            String targetProfileId=pendingFontProfileId!=null?pendingFontProfileId:activeProfileId;
+            pendingFontProfileId=null;
             if(result==RESULT_OK&&data!=null&&data.getData()!=null){
                 try{
-                    String fontName=PlayerFont.importFont(this,data.getData());
+                    String fontName=PlayerFont.importFont(this,targetProfileId,data.getData());
                     Toast.makeText(this,"Loaded font: "+fontName,Toast.LENGTH_SHORT).show();
                     if(runner==null){
-                        chooseHome(null);
+                        if(launcherView!=null){
+                            launcherView.refreshProfileModalFont(targetProfileId);
+                        }else{
+                            chooseHome(null);
+                        }
                     }else{
                         if(dialoguePanel!=null){
                             dialoguePanel.refreshFont();
                             storyPlane.schedulePush();
                         }
                         if(gamePanel!=null)gamePanel.postInvalidate();
+                        if(refreshReadingSettingsFont!=null){
+                            refreshReadingSettingsFont.run();
+                        }
                     }
                 }catch(Exception e){
                     Toast.makeText(this,e.getMessage()!=null?e.getMessage():"Failed to load font",Toast.LENGTH_LONG).show();
@@ -265,17 +428,71 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
             if (volume==null) throw new IOException("Selected storage volume not found.");
             File selected=new File(volume,id[1]).getCanonicalFile();
             if (!selected.toPath().startsWith(volume.getCanonicalFile().toPath())) throw new IOException("Invalid game folder.");
-            selectedGameTree=uri;
             if(Build.VERSION.SDK_INT==29)try{
                 getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);
             }catch(SecurityException ignored){}
-            game=selected; inspectAccess();
-        } catch (IOException | IllegalArgumentException e) { chooseHome(e.getMessage()); }
+
+            boolean readable=false;
+            File script=GameResourcePaths.file(selected,"spt","sys.spt");
+            if(script!=null){
+                try(FileInputStream probe=new FileInputStream(script)){
+                    File mapping=GameResourcePaths.file(selected,"sjis_ext.bin");
+                    if(mapping!=null)try(FileInputStream map=new FileInputStream(mapping)){map.read();}
+                    readable=probe.read()!=-1;
+                }catch(IOException ignored){}
+            }
+            if(readable){
+                GameProfileStore.Profile profile=GameProfileStore.addOrUpdate(this,selected,uri.toString());
+                if(launcherView!=null){
+                    launcherView.refresh();
+                }else{
+                    chooseHome(null);
+                }
+                if(profile!=null){
+                    Toast.makeText(this,"Added "+profile.name,Toast.LENGTH_SHORT).show();
+                }
+                return;
+            }
+            if(Build.VERSION.SDK_INT==29&&!Environment.isExternalStorageLegacy()){
+                File existingCopy=SystemNnnGameImport.committedRoot(this,SystemNnnGameImport.sourceIdentity(uri));
+                if(existingCopy!=null&&SystemNnnGameImport.readableBootstrap(existingCopy)){
+                    GameProfileStore.Profile profile=GameProfileStore.addOrUpdate(this,selected,uri.toString());
+                    if(profile!=null){
+                        File iconOut=GameProfileStore.iconFile(this,profile.id);
+                        if(iconOut!=null&&(!iconOut.isFile()||iconOut.length()==0)){
+                            final File copyDir=existingCopy;
+                            final File dest=iconOut;
+                            new Thread(()->{
+                                if(ExeIconExtractor.extractToPng(copyDir,dest)){
+                                    ui.post(()->{if(launcherView!=null)launcherView.refresh();});
+                                }
+                            },"Emberfall-AddIcon").start();
+                        }
+                        Toast.makeText(this,"Added "+profile.name,Toast.LENGTH_SHORT).show();
+                    }
+                    if(launcherView!=null){
+                        launcherView.refresh();
+                    }else{
+                        chooseHome(null);
+                    }
+                    return;
+                }
+                pendingImportSourceDir=selected;
+                selectedGameTree=uri;
+                game=selected;
+                inspectAccess();
+                return;
+            }
+            Toast.makeText(this,"No spt/sys.spt found in selected folder",Toast.LENGTH_SHORT).show();
+        } catch (IOException | IllegalArgumentException e) {
+            Toast.makeText(this,e.getMessage()!=null?e.getMessage():"Unable to add game folder",Toast.LENGTH_LONG).show();
+        }
     }
     @Override protected void onSaveInstanceState(Bundle state) {
         super.onSaveInstanceState(state);
         if (!fromTyn && game!=null) state.putString("selectedGame",game.getPath());
         if (!fromTyn && selectedGameTree!=null)state.putString("selectedGameTree",selectedGameTree.toString());
+        if (!fromTyn && activeProfileId!=null)state.putString("activeProfileId",activeProfileId);
     }
     private void inspectAccess() {
         if (game==null || runner!=null || copyingGame) return;
@@ -310,14 +527,15 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
         return SystemNnnGameImport.normalizeIdentity(volume+":"+storage.resolve(volume).relativize(source));
     }
     private boolean requestGameAccess(boolean writing){
-        if(Build.VERSION.SDK_INT!=29||selectedGameTree==null||usingGameCopy)return requestStorageAccess(writing);
-        if(Environment.isExternalStorageLegacy()&&requestStorageAccess(writing))return true;
-        message("Copy Game","Direct access to the selected folder is unavailable. You can copy the game into the app directory and launch it; saves will be stored in the copy's sav directory.",
-            "Copy to App Storage",v->copySelectedGame());
-        return true;
+        if(Build.VERSION.SDK_INT==29&&selectedGameTree!=null&&!usingGameCopy&&!Environment.isExternalStorageLegacy()){
+            message("Copy Game","Direct access to the selected folder is unavailable. You can copy the game into the app directory and launch it; saves will be stored in the copy's sav directory.",
+                "Copy to App Storage",v->copySelectedGame());
+            return true;
+        }
+        return requestStorageAccess(writing);
     }
     private void copySelectedGame(){
-        if(copyingGame||selectedGameTree==null)return;
+        if(Build.VERSION.SDK_INT!=29||Environment.isExternalStorageLegacy()||copyingGame||selectedGameTree==null)return;
         Uri tree=selectedGameTree;
         copyingGame=true;
         cancelGameCopy=false;
@@ -336,7 +554,27 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
             ui.post(()->{
                 if(isDestroyed()||isFinishing())return;
                 copyingGame=false;
-                if(imported==null){chooseHome(reason);return;}
+                if(imported==null){pendingImportSourceDir=null;chooseHome(reason);return;}
+                if(!fromTyn){
+                    File profileDir=pendingImportSourceDir;
+                    if(profileDir==null){
+                        try{profileDir=SystemNnnGameImport.originalGame(this,imported);}
+                        catch(IOException ignored){profileDir=imported;}
+                    }
+                    pendingImportSourceDir=null;
+                    GameProfileStore.Profile profile=GameProfileStore.addOrUpdate(this,profileDir,tree.toString());
+                    if(profile!=null){
+                        activeProfileId=profile.id;
+                        PlayerFont.setActiveProfile(profile.id);
+                        GameProfileStore.touchLastPlayed(this,profile.id);
+                        File iconOut=GameProfileStore.iconFile(this,profile.id);
+                        if(iconOut!=null&&(!iconOut.isFile()||iconOut.length()==0)){
+                            final File iconSource=imported;
+                            final File iconDest=iconOut;
+                            new Thread(()->ExeIconExtractor.extractToPng(iconSource,iconDest),"Emberfall-ImportIcon").start();
+                        }
+                    }
+                }
                 game=imported;
                 usingGameCopy=true;
                 startGame();
@@ -362,17 +600,12 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
         boolean needsGrant=Build.VERSION.SDK_INT>=30 ? !Environment.isExternalStorageManager() :
                 checkSelfPermission(permission)!=PackageManager.PERMISSION_GRANTED;
         if (needsGrant) {
-            message("Grant Storage Access","Please grant file access permissions to SystemNNN to read game resources and write to the sav save directory.",
-                "Open Settings",v -> {
-                    permissionPending=true;
-                    if (Build.VERSION.SDK_INT>=30) {
-                        Intent settings=new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                            Uri.parse("package:"+getPackageName()));
-                        try { startActivity(settings); }
-                        catch (android.content.ActivityNotFoundException e) { startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)); }
-                    } else requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE,
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE},21);
-                });
+            if (!fromTyn) {
+                chooseHome(null);
+            } else {
+                message("Grant Storage Access","Please grant file access permissions to SystemNNN to read game resources and write to the sav save directory.",
+                    "Open Settings",v -> openStoragePermissionSettings());
+            }
         }
         return needsGrant;
     }
@@ -387,6 +620,8 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
         File directory=saves.directory();
         if(!(directory.isDirectory()?directory:game).canWrite() && requestGameAccess(true))return;
         storyPlane.release();
+        if(launcherView!=null){launcherView.destroy();launcherView=null;}
+        showingLauncher=false;
         root.removeAllViews();
         storyTouchSlop=ViewConfiguration.get(this).getScaledTouchSlop();
         stage=new FrameLayout(this){
@@ -402,15 +637,17 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
         root.addView(stage,new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER));
         panelActionButton=new Button(this);
         panelActionButton.setSingleLine(true);
-        panelActionButton.setSoundEffectsEnabled(false);
         panelActionButton.setVisibility(View.GONE);
         panelActionButton.setOnClickListener(v->{
             if(!panelActionReady())return;
             if(gamePanel instanceof GameSettingsPanel)showReadingSettings();
         });
-        FrameLayout.LayoutParams actionPosition=new FrameLayout.LayoutParams(-2,dp(48),Gravity.TOP|Gravity.END);
-        actionPosition.setMargins(dp(4),dp(4),dp(4),0);
+        FrameLayout.LayoutParams actionPosition=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.END);
+        actionPosition.setMargins(dp(10),dp(10),dp(10),0);
         root.addView(panelActionButton,actionPosition);
+        EmberfallUi.styleFloatingActionButton(panelActionButton);
+        panelActionButton.setMinHeight(dp(38));
+        panelActionButton.setMinimumHeight(dp(38));
         root.getViewTreeObserver().addOnPreDrawListener(()->{updatePanelActionEnabled();return true;});
         root.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob) -> layoutStage());
         screen=new TextureView(this); screen.setContentDescription("Game Screen");screen.setSoundEffectsEnabled(false);
@@ -1190,8 +1427,17 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
         runner.suspendScriptAudio();
     }
     private void showPanel(AlertDialog dialog) {
+        trackModalDialog(dialog, null);
+        dialog.show();
+        for(int which:new int[]{DialogInterface.BUTTON_POSITIVE,DialogInterface.BUTTON_NEGATIVE,DialogInterface.BUTTON_NEUTRAL})
+            if(dialog.getButton(which)!=null)dialog.getButton(which).setSoundEffectsEnabled(false);
+        if(dialog.getListView()!=null)dialog.getListView().setSoundEffectsEnabled(false);
+        if(dialog.getWindow()!=null)dialog.getWindow().setLayout(Math.min(dp(720),Math.max(dp(280),root.getWidth()-dp(40))),-2);
+    }
+    private void trackModalDialog(AlertDialog dialog, Runnable onExtraDismiss) {
         panelsOpen++;openedPanels.add(dialog);if(runner!=null)runner.menu(true);updateVisibility();
         dialog.setOnDismissListener(d -> {
+            if(onExtraDismiss!=null)onExtraDismiss.run();
             openedPanels.remove(dialog);panelsOpen=Math.max(0,panelsOpen-1);
             if(isOverlayMode(gamePanel)&&modeUnderPanel!=null&&openedPanels.isEmpty()){
                 if(resumeModeAfterPanel(null))return;
@@ -1200,11 +1446,6 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
             if(runner!=null&&panelsOpen==0&&!isFinishing())runner.menu(false);
             updateVisibility();updateStatus();immersive();
         });
-        dialog.show();
-        for(int which:new int[]{DialogInterface.BUTTON_POSITIVE,DialogInterface.BUTTON_NEGATIVE,DialogInterface.BUTTON_NEUTRAL})
-            if(dialog.getButton(which)!=null)dialog.getButton(which).setSoundEffectsEnabled(false);
-        if(dialog.getListView()!=null)dialog.getListView().setSoundEffectsEnabled(false);
-        if(dialog.getWindow()!=null)dialog.getWindow().setLayout(Math.min(dp(720),Math.max(dp(280),root.getWidth()-dp(40))),-2);
     }
     private void showOriginalPanel(GameUiPanel panel,Runnable back) {
         showOriginalPanel(panel,back,null);
@@ -1939,29 +2180,132 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
         if(dialog.getWindow()!=null)dialog.getWindow().setLayout(Math.min(dp(760),root.getWidth()-dp(32)),Math.max(dp(200),root.getHeight()-dp(32)));
     }
     private void showReadingSettings() {
-        int[] sizes=PlayerSettings.READING_SIZES;
-        String[] labels=new String[sizes.length];
-        int selected=0;
-        for(int i=0;i<sizes.length;i++){
-            int size=sizes[i];
-            labels[i]=size+"%";
-            if(size==PlayerSettings.DEFAULT_READING_SIZE)labels[i]=labels[i]+" (Default)";
-            else if(size==100)labels[i]=labels[i]+" (Original)";
-            if(size==settings.readingSize)selected=i;
-        }
-        AlertDialog.Builder builder=new AlertDialog.Builder(this).setTitle("Text Size & Font ("+PlayerFont.currentName(this)+")")
-            .setSingleChoiceItems(labels,selected,(d,i)->userPreferences.edit().putInt(PlayerSettings.READING_SIZE,sizes[i]).apply())
-            .setNegativeButton("Load Font (.ttf / .otf)",(d,i)->pickFontFile())
-            .setPositiveButton("Done",null);
-        if(PlayerFont.hasCustom(this)){
-            builder.setNeutralButton("Reset Font",(d,i)->{
-                PlayerFont.reset(PlayerActivity.this);
-                Toast.makeText(PlayerActivity.this,"Font reset to default",Toast.LENGTH_SHORT).show();
-                if(dialoguePanel!=null){dialoguePanel.refreshFont();storyPlane.schedulePush();}
-                if(gamePanel!=null)gamePanel.postInvalidate();
-            });
-        }
-        showPanel(builder.create());
+        LinearLayout content=new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setLayoutParams(new ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        final AlertDialog[] holder=new AlertDialog[1];
+        content.addView(EmberfallUi.buildModalHeader(this,"Text & Font",()->{
+            if(holder[0]!=null)holder[0].dismiss();
+        }));
+
+        TextView sizeLabel=EmberfallUi.text(this,"Text Size",12.5f,EmberfallUi.TEXT_SECONDARY,true);
+        LinearLayout.LayoutParams sizeLabelLp=new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        sizeLabelLp.topMargin=dp(14);
+        content.addView(sizeLabel,sizeLabelLp);
+
+        LinearLayout sizeSelector=EmberfallUi.buildReadingSizeSelector(this,settings.readingSize,size->{
+            userPreferences.edit().putInt(PlayerSettings.READING_SIZE,size).apply();
+        });
+        LinearLayout.LayoutParams selectorLp=new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        selectorLp.topMargin=dp(8);
+        content.addView(sizeSelector,selectorLp);
+
+        LinearLayout fontCard=new LinearLayout(this);
+        fontCard.setOrientation(LinearLayout.VERTICAL);
+        fontCard.setBackground(EmberfallUi.roundedRect(EmberfallUi.BG_CARD,EmberfallUi.BORDER_CARD,dp(1),dp(12)));
+        fontCard.setPadding(dp(12),dp(10),dp(12),dp(10));
+        LinearLayout.LayoutParams fontCardLp=new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        fontCardLp.topMargin=dp(16);
+
+        LinearLayout fontHeader=new LinearLayout(this);
+        fontHeader.setOrientation(LinearLayout.HORIZONTAL);
+        fontHeader.setGravity(Gravity.CENTER_VERTICAL);
+
+        TextView fontLabel=EmberfallUi.text(this,"Font",12.5f,EmberfallUi.TEXT_SECONDARY,true);
+        fontHeader.addView(fontLabel);
+
+        final TextView fontNameView=EmberfallUi.text(this,PlayerFont.currentName(this),13f,EmberfallUi.TEXT_PRIMARY,true);
+        fontNameView.setSingleLine(true);
+        fontNameView.setEllipsize(TextUtils.TruncateAt.END);
+        fontNameView.setGravity(Gravity.END);
+        LinearLayout.LayoutParams fontNameLp=new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f);
+        fontNameLp.setMarginStart(dp(12));
+        fontHeader.addView(fontNameView,fontNameLp);
+
+        fontCard.addView(fontHeader,new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ));
+
+        LinearLayout fontActions=new LinearLayout(this);
+        fontActions.setOrientation(LinearLayout.HORIZONTAL);
+        fontActions.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams fontActionsLp=new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        fontActionsLp.topMargin=dp(10);
+
+        TextView chooseBtn=EmberfallUi.secondaryButton(
+            this,
+            "Choose Font",
+            EmberfallUi.fontIcon(this,15,EmberfallUi.ACCENT),
+            v->pickFontFile()
+        );
+        fontActions.addView(chooseBtn,new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f));
+
+        final TextView[] resetBtnHolder=new TextView[1];
+        final Runnable refreshUi=()->{
+            fontNameView.setText(PlayerFont.currentName(PlayerActivity.this));
+            if(resetBtnHolder[0]!=null){
+                resetBtnHolder[0].setVisibility(PlayerFont.hasCustom(PlayerActivity.this)?View.VISIBLE:View.GONE);
+            }
+        };
+
+        TextView resetBtn=EmberfallUi.dangerButton(this,"Reset",v->{
+            PlayerFont.reset(PlayerActivity.this);
+            Toast.makeText(PlayerActivity.this,"Font reset to default",Toast.LENGTH_SHORT).show();
+            if(dialoguePanel!=null){dialoguePanel.refreshFont();storyPlane.schedulePush();}
+            if(gamePanel!=null)gamePanel.postInvalidate();
+            refreshUi.run();
+        });
+        resetBtnHolder[0]=resetBtn;
+        LinearLayout.LayoutParams resetLp=new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        resetLp.setMarginStart(dp(8));
+        fontActions.addView(resetBtn,resetLp);
+
+        fontCard.addView(fontActions,fontActionsLp);
+        content.addView(fontCard,fontCardLp);
+
+        LinearLayout footer=new LinearLayout(this);
+        footer.setOrientation(LinearLayout.HORIZONTAL);
+        footer.setGravity(Gravity.END);
+        LinearLayout.LayoutParams footerLp=new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        footerLp.topMargin=dp(16);
+        footer.addView(EmberfallUi.primaryButton(this,"Done",null,v->{
+            if(holder[0]!=null)holder[0].dismiss();
+        }));
+        content.addView(footer,footerLp);
+
+        refreshUi.run();
+        final AlertDialog dialog=EmberfallUi.createModalDialog(this,content,true,480);
+        holder[0]=dialog;
+        refreshReadingSettingsFont=refreshUi;
+        trackModalDialog(dialog,()->{
+            if(refreshReadingSettingsFont==refreshUi){
+                refreshReadingSettingsFont=null;
+            }
+        });
+        dialog.show();
     }
     private void volumeSetting(LinearLayout box,String title,String key,int current) {
         TextView value=label(title+"  "+current+"%",15);box.addView(value);
@@ -2117,7 +2461,7 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
         boolean startOver=owner!=null&&owner.initialized();
         new AlertDialog.Builder(this).setTitle("Game Execution Interrupted").setMessage(text)
             .setCancelable(false)
-            .setNegativeButton("Return to TYN",dialogClick((d,w) -> finish()))
+            .setNegativeButton(fromTyn?"Return to TYN":"Exit",dialogClick((d,w) -> finish()))
             .setPositiveButton(startOver?"Restart":"Retry Load",
                 dialogClick((d,w) -> {if(owner!=null&&owner==runner)owner.restart(startOver);})).show();
     }); }
@@ -2127,13 +2471,67 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
         t.setTextSize(TypedValue.COMPLEX_UNIT_SP,size); t.setText(s); return t;
     }
     private void message(String title,String body,String action,View.OnClickListener listener) {
-        root.removeAllViews(); LinearLayout box=new LinearLayout(this); box.setGravity(Gravity.CENTER);
-        box.setPadding(dp(32),dp(16),dp(32),dp(16)); box.setOrientation(LinearLayout.VERTICAL);
-        TextView heading=label(title,22); heading.setTypeface(Typeface.DEFAULT,Typeface.BOLD); box.addView(heading);
-        TextView description=label(body,16); description.setPadding(0,dp(12),0,dp(12)); box.addView(description);
-        if (action!=null) {Button b=new Button(this); b.setText(action);b.setSoundEffectsEnabled(false);b.setOnClickListener(clicked(listener)); box.addView(b);}
-        Button back=new Button(this); back.setText("Back");back.setSoundEffectsEnabled(false);back.setOnClickListener(clicked(v -> finish())); box.addView(back);
-        root.addView(box,new FrameLayout.LayoutParams(-1,-1));
+        if(launcherView!=null){launcherView.destroy();launcherView=null;}
+        showingLauncher=false;
+        root.removeAllViews();
+
+        FrameLayout outer=new FrameLayout(this);
+        outer.setBackgroundColor(EmberfallUi.BG_WINDOW);
+        int outerPad=dp(20);
+        outer.setPadding(outerPad,outerPad,outerPad,outerPad);
+
+        ScrollView scroll=new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setVerticalScrollBarEnabled(false);
+        FrameLayout.LayoutParams scrollLp=new FrameLayout.LayoutParams(-1,-2,Gravity.CENTER);
+        outer.addView(scroll,scrollLp);
+
+        FrameLayout centerWrap=new FrameLayout(this);
+        LinearLayout card=new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setBackground(EmberfallUi.roundedRect(EmberfallUi.BG_SURFACE,EmberfallUi.BORDER_SUBTLE,dp(1),dp(16)));
+        card.setPadding(dp(22),dp(20),dp(22),dp(20));
+
+        TextView heading=EmberfallUi.text(this,title,18f,EmberfallUi.TEXT_PRIMARY,true);
+        card.addView(heading);
+
+        if(body!=null&&!body.isEmpty()){
+            TextView description=EmberfallUi.text(this,body,13.5f,EmberfallUi.TEXT_SECONDARY,false);
+            description.setLineSpacing(0f,1.25f);
+            LinearLayout.LayoutParams descLp=new LinearLayout.LayoutParams(-1,-2);
+            descLp.topMargin=dp(10);
+            card.addView(description,descLp);
+        }
+
+        LinearLayout actions=new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        actions.setGravity(Gravity.CENTER_VERTICAL|Gravity.END);
+        LinearLayout.LayoutParams actionsLp=new LinearLayout.LayoutParams(-1,-2);
+        actionsLp.topMargin=dp(18);
+
+        TextView back=EmberfallUi.secondaryButton(this,"Back",null,v->{
+            if(!fromTyn&&runner==null){
+                chooseHome(null);
+            }else{
+                finish();
+            }
+        });
+        actions.addView(back);
+
+        if(action!=null){
+            TextView primary=EmberfallUi.primaryButton(this,action,null,v->{
+                if(listener!=null)listener.onClick(v);
+            });
+            LinearLayout.LayoutParams primaryLp=new LinearLayout.LayoutParams(-2,-2);
+            primaryLp.setMarginStart(dp(10));
+            actions.addView(primary,primaryLp);
+        }
+
+        card.addView(actions,actionsLp);
+        int cardMaxW=Math.min(dp(480),Math.max(dp(260),getResources().getDisplayMetrics().widthPixels-dp(48)));
+        centerWrap.addView(card,new FrameLayout.LayoutParams(cardMaxW,-2,Gravity.CENTER));
+        scroll.addView(centerWrap,new FrameLayout.LayoutParams(-1,-2));
+        root.addView(outer,new FrameLayout.LayoutParams(-1,-1));
     }
     private void immersive() {
         boolean full=settings==null||settings.fullscreen;
@@ -2294,13 +2692,32 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
             if(panelBack!=null)panelBack.run();else closeOriginalPanel();
         }else if(nativePanelActive()){nativePanelBack();}
         else if(uiHidden){uiHidden=false;updateVisibility();}
-        else if(runner==null||titlePanel!=null)finish();
+        else if(runner==null){
+            if(!fromTyn&&!showingLauncher){chooseHome(null);}
+            else{finish();}
+        }
+        else if(titlePanel!=null)finish();
         else showMenu();
     }
     @Override protected void onResume() { super.onResume(); foreground=true; immersive();
         if(gamePanel!=null)gamePanel.uiActive(moviePlayback==null&&movieErrorPanel==null);
         statusActive(true);
-        if(permissionPending) {permissionPending=false; inspectAccess();}
+        if(permissionPending) {
+            permissionPending=false;
+            if(runner==null&&!fromTyn){
+                if(game!=null&&hasRequiredStandaloneStoragePermission()){
+                    if(storageGateDialog!=null&&storageGateDialog.isShowing())storageGateDialog.dismiss();
+                    storageGateDialog=null;
+                    inspectAccess();
+                }else{
+                    enforceStandaloneStorageGate();
+                }
+            }else if(runner==null){
+                inspectAccess();
+            }
+        } else if(runner==null&&!fromTyn&&showingLauncher){
+            enforceStandaloneStorageGate();
+        }
         if(runner!=null) runner.active(true);
         if(moviePlayback!=null)moviePlayback.resume();
         if(movieErrorPanel!=null)movieErrorPanel.uiActive(true);
@@ -2310,6 +2727,8 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
         if(movieErrorPanel!=null)movieErrorPanel.uiActive(false);super.onPause();}
     @Override protected void onDestroy() {
         cancelGameCopy=true;
+        if(storageGateDialog!=null&&storageGateDialog.isShowing()){storageGateDialog.dismiss();storageGateDialog=null;}
+        if(launcherView!=null){launcherView.destroy();launcherView=null;}
         if(moviePlayback!=null){moviePlayback.dispose();moviePlayback=null;}
         if(movieErrorPanel!=null){movieErrorPanel.discardBackground();movieErrorPanel=null;}
         ui.removeCallbacksAndMessages(null);
@@ -2322,6 +2741,19 @@ public final class PlayerActivity extends Activity implements GameRunner.Listene
     }
     @Override public void onRequestPermissionsResult(int code,String[] perms,int[] grants) {
         super.onRequestPermissionsResult(code,perms,grants);
-        if(code==21 && runner==null) {permissionPending=false; inspectAccess();}
+        if(code==21 && runner==null) {
+            permissionPending=false;
+            if(!fromTyn){
+                if(game!=null&&hasRequiredStandaloneStoragePermission()){
+                    if(storageGateDialog!=null&&storageGateDialog.isShowing())storageGateDialog.dismiss();
+                    storageGateDialog=null;
+                    inspectAccess();
+                }else{
+                    enforceStandaloneStorageGate();
+                }
+            }else{
+                inspectAccess();
+            }
+        }
     }
 }

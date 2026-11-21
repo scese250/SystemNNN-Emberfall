@@ -14,7 +14,7 @@ $env:SYSTEMNNN_NDK = '/opt/android-ndk-r28'
 python platform/android/build_player.py
 ```
 
-脚本默认使用 Ubuntu WSL 发行版，可通过 `SYSTEMNNN_WSL_DISTRO` 指定其他发行版。首次构建会下载 FFmpeg 源码并交叉编译。默认输出为 `build/tyranor/SystemNNN-Emberfall-0.8.1-arm64.apk`。加上 `--movie-codec-linkage static` 可在本地生成供提取单个 `.so` 使用的 `build/tyranor/SystemNNN-Emberfall-0.8.1-single-arm64.apk`。构建脚本使用本地调试密钥，覆盖安装要求新旧 APK 证书一致。
+脚本默认使用 Ubuntu WSL 发行版，可通过 `SYSTEMNNN_WSL_DISTRO` 指定其他发行版。首次构建会下载 FFmpeg 源码并交叉编译。默认输出为 `build/tyranor/SystemNNN-Emberfall-0.8.1-arm64.apk`。加上 `--movie-codec-linkage static` 可在本地生成供提取单个 `.so` 使用的 `build/tyranor/SystemNNN-Emberfall-0.8.1-single-arm64.apk`。默认使用仓库内的固定调试密钥 `platform/android/signing/emberfall-debug.p12` 签名，因此本地与未配置 Secrets 的 GitHub Actions 构建之间证书一致，可直接覆盖安装（从早期随机密钥版本升级需先卸载一次）。如需使用私有签名密钥，可通过 `--keystore` / `--keystore-pass` / `--key-alias` / `--key-pass` 或环境变量 `ANDROID_KEYSTORE_PATH`、`ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`（可在 GitHub Secrets 中配置）覆盖；如需递增 `versionCode`，可通过 `--version-code` 或 `ANDROID_VERSION_CODE` 指定（不可低于 `AndroidManifest.xml` 中的值）。
 
 FFmpeg 解压完成后才会发布可复用的源码目录。升级旧构建缓存时，未标记为完整的源码树会移入同级的 `source-previous.*` 目录。
 

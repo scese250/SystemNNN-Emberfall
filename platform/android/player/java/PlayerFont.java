@@ -18,65 +18,104 @@ import java.io.RandomAccessFile;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.Objects;
 
 final class PlayerFont {
     private static final String FONT_FILE_NAME = "custom_font.ttf";
+    private static final String PROFILE_FONT_DIR = "profiles/fonts";
+    private static final String PROFILE_FONT_NAME_PREFIX = "profileFontName.";
+    private static final String DEFAULT_FONT_DISPLAY_NAME = "Game Default";
+
+    private static volatile String activeProfileId = null;
     private static volatile Typeface cachedTypeface = null;
+    private static volatile String cachedProfileId = null;
+    private static volatile String cachedPath = null;
     private static volatile long cachedMtime = -1;
 
     private PlayerFont() {}
 
-    private static File baseFile(Context context) {
+    static void setActiveProfile(String profileId) {
+        activeProfileId = normalizeProfileId(profileId);
+    }
+
+    static String activeProfileId() {
+        return activeProfileId;
+    }
+
+    private static String normalizeProfileId(String profileId) {
+        return (profileId != null && !profileId.isEmpty()) ? profileId : null;
+    }
+
+    private static File fontFile(Context context, String profileId) {
+        String id = normalizeProfileId(profileId);
+        if (id != null) {
+            return new File(new File(context.getFilesDir(), PROFILE_FONT_DIR), id + ".ttf");
+        }
         return new File(context.getFilesDir(), FONT_FILE_NAME);
     }
 
+    private static String fontNameKey(String profileId) {
+        String id = normalizeProfileId(profileId);
+        return id != null ? (PROFILE_FONT_NAME_PREFIX + id) : PlayerSettings.CUSTOM_FONT_NAME;
+    }
+
     static boolean hasCustom(Context context) {
+        return hasCustom(context, activeProfileId);
+    }
+
+    static boolean hasCustom(Context context, String profileId) {
         if (context == null) return false;
-        File file = baseFile(context);
+        File file = fontFile(context, profileId);
         return file.exists() && file.length() > 0;
     }
 
     static String currentName(Context context) {
-        if (context == null || !hasCustom(context)) {
-            return "System Default";
+        return currentName(context, activeProfileId);
+    }
+
+    static String currentName(Context context, String profileId) {
+        if (context == null || !hasCustom(context, profileId)) {
+            return DEFAULT_FONT_DISPLAY_NAME;
         }
-        String name = PlayerSettings.preferences(context).getString(PlayerSettings.CUSTOM_FONT_NAME, null);
+        String name = PlayerSettings.preferences(context).getString(fontNameKey(profileId), null);
         return (name != null && !name.trim().isEmpty()) ? name : FONT_FILE_NAME;
     }
 
     static Typeface base(Context context) {
         if (context == null) return Typeface.DEFAULT;
-        File file = baseFile(context);
-        if (!file.exists() || file.length() == 0) {
-            cachedTypeface = null;
-            cachedMtime = -1;
-            return Typeface.DEFAULT;
-        }
-        long mtime = file.lastModified();
-        Typeface tf = cachedTypeface;
-        if (tf != null && cachedMtime == mtime) {
-            return tf;
-        }
+        String profileId = activeProfileId;
         synchronized (PlayerFont.class) {
-            file = baseFile(context);
+            File file = fontFile(context, profileId);
+            String path = file.getAbsolutePath();
             if (!file.exists() || file.length() == 0) {
-                cachedTypeface = null;
-                cachedMtime = -1;
+                if (Objects.equals(cachedProfileId, profileId) && Objects.equals(cachedPath, path)) {
+                    cachedTypeface = null;
+                    cachedProfileId = null;
+                    cachedPath = null;
+                    cachedMtime = -1;
+                }
                 return Typeface.DEFAULT;
             }
-            mtime = file.lastModified();
-            if (cachedTypeface != null && cachedMtime == mtime) {
+            long mtime = file.lastModified();
+            if (cachedTypeface != null
+                    && Objects.equals(cachedProfileId, profileId)
+                    && Objects.equals(cachedPath, path)
+                    && cachedMtime == mtime) {
                 return cachedTypeface;
             }
             try {
                 Typeface loaded = Typeface.createFromFile(file);
                 if (loaded != null) {
                     cachedTypeface = loaded;
+                    cachedProfileId = profileId;
+                    cachedPath = path;
                     cachedMtime = mtime;
                     return loaded;
                 }
             } catch (RuntimeException ignored) {}
             cachedTypeface = null;
+            cachedProfileId = null;
+            cachedPath = null;
             cachedMtime = -1;
             return Typeface.DEFAULT;
         }
@@ -112,7 +151,12 @@ final class PlayerFont {
     }
 
     static String importFont(Context context, Uri uri) throws IOException {
+        return importFont(context, activeProfileId, uri);
+    }
+
+    static String importFont(Context context, String profileId, Uri uri) throws IOException {
         if (context == null || uri == null) throw new IOException("Context or Uri is null");
+        String normalizedId = normalizeProfileId(profileId);
         String displayName = FONT_FILE_NAME;
         try (Cursor cursor = context.getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
             if (cursor != null && cursor.moveToFirst()) {
@@ -177,7 +221,12 @@ final class PlayerFont {
             throw new IOException("Invalid font file. Please select a valid .ttf or .otf font.", e);
         }
 
-        File targetFile = baseFile(context);
+        File targetFile = fontFile(context, normalizedId);
+        File parentDir = targetFile.getParentFile();
+        if (parentDir != null && !parentDir.exists() && !parentDir.mkdirs()) {
+            tempFile.delete();
+            throw new IOException("Failed to create font directory");
+        }
         try {
             try {
                 Files.move(tempFile.toPath(), targetFile.toPath(),
@@ -193,13 +242,15 @@ final class PlayerFont {
 
         synchronized (PlayerFont.class) {
             cachedTypeface = testTypeface;
+            cachedProfileId = normalizedId;
+            cachedPath = targetFile.getAbsolutePath();
             cachedMtime = targetFile.lastModified();
         }
 
         SharedPreferences prefs = PlayerSettings.preferences(context);
         int ver = prefs.getInt(PlayerSettings.CUSTOM_FONT_VERSION, 0);
         prefs.edit()
-            .putString(PlayerSettings.CUSTOM_FONT_NAME, displayName)
+            .putString(fontNameKey(normalizedId), displayName)
             .putInt(PlayerSettings.CUSTOM_FONT_VERSION, ver + 1)
             .apply();
 
@@ -207,20 +258,56 @@ final class PlayerFont {
     }
 
     static void reset(Context context) {
+        reset(context, activeProfileId);
+    }
+
+    static void reset(Context context, String profileId) {
         if (context == null) return;
-        File targetFile = baseFile(context);
+        String normalizedId = normalizeProfileId(profileId);
+        File targetFile = fontFile(context, normalizedId);
+        String targetPath = targetFile.getAbsolutePath();
         if (targetFile.exists()) {
             targetFile.delete();
         }
         synchronized (PlayerFont.class) {
-            cachedTypeface = null;
-            cachedMtime = -1;
+            if (Objects.equals(cachedProfileId, normalizedId) || Objects.equals(cachedPath, targetPath)) {
+                cachedTypeface = null;
+                cachedProfileId = null;
+                cachedPath = null;
+                cachedMtime = -1;
+            }
         }
         SharedPreferences prefs = PlayerSettings.preferences(context);
         int ver = prefs.getInt(PlayerSettings.CUSTOM_FONT_VERSION, 0);
         prefs.edit()
-            .remove(PlayerSettings.CUSTOM_FONT_NAME)
+            .remove(fontNameKey(normalizedId))
             .putInt(PlayerSettings.CUSTOM_FONT_VERSION, ver + 1)
             .apply();
+    }
+
+    static void deleteProfileFont(Context context, String profileId) {
+        if (context == null) return;
+        String normalizedId = normalizeProfileId(profileId);
+        if (normalizedId == null) return;
+        File targetFile = fontFile(context, normalizedId);
+        String targetPath = targetFile.getAbsolutePath();
+        if (targetFile.exists()) {
+            targetFile.delete();
+        }
+        synchronized (PlayerFont.class) {
+            if (Objects.equals(cachedProfileId, normalizedId) || Objects.equals(cachedPath, targetPath)) {
+                cachedTypeface = null;
+                cachedProfileId = null;
+                cachedPath = null;
+                cachedMtime = -1;
+            }
+        }
+        SharedPreferences prefs = PlayerSettings.preferences(context);
+        SharedPreferences.Editor editor = prefs.edit().remove(fontNameKey(normalizedId));
+        if (Objects.equals(activeProfileId, normalizedId)) {
+            int ver = prefs.getInt(PlayerSettings.CUSTOM_FONT_VERSION, 0);
+            editor.putInt(PlayerSettings.CUSTOM_FONT_VERSION, ver + 1);
+        }
+        editor.apply();
     }
 }
